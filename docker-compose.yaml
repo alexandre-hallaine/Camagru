@@ -1,0 +1,30 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./public:/var/www/html
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php
+
+  php:
+    build:
+      context: .
+      dockerfile: php.Dockerfile
+    volumes:
+      - ./server:/var/www/server
+    depends_on:
+      - db
+
+  db:
+    image: mariadb:11
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: camagru
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:
