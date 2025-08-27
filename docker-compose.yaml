@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:alpine
+    image: nginx:1-alpine
     ports:
       - "8080:80"
     volumes:
@@ -19,7 +19,7 @@ services:
       - db
 
   db:
-    image: mariadb:11
+    image: mariadb:12-ubi
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: camagru

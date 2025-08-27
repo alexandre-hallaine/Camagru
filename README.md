@@ -3,5 +3,5 @@
 Simple Instagram like.
 
 ```bash
-docker-compose up
+docker compose up
 ```
