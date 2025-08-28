@@ -1,26 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <title>Camagru</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <h2>Signup</h2>
-        <form id="signupForm">
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username" required />
-            <br />
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required />
-            <br />
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required />
-            <br />
-            <button type="submit">Sign Up</button>
-        </form>
+<head>
+    <title>Camagru</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="auth-container">
+        <div id="signin-section">
+            <h2>USER_AUTHENTICATION</h2>
+            <form id="signinForm">
+                <label for="signin-username">USERNAME/EMAIL:</label>
+                <input type="text" id="signin-username" name="username" required />
+                <label for="signin-password">PASSWORD:</label>
+                <input type="password" id="signin-password" name="password" required />
+                <button type="submit">LOGIN</button>
+            </form>
+            <p>New user? <a href="#" id="show-signup">Sign Up</a></p>
+        </div>
 
-        <pre id="result"></pre>
+        <div id="signup-section" style="display: none;">
+            <h2>USER_REGISTRATION</h2>
+            <form id="signupForm">
+                <label for="signup-username">USERNAME:</label>
+                <input type="text" id="signup-username" name="username" required />
+                <label for="signup-email">EMAIL:</label>
+                <input type="email" id="signup-email" name="email" required />
+                <label for="signup-password">PASSWORD:</label>
+                <input type="password" id="signup-password" name="password" required />
+                <button type="submit">REGISTER</button>
+            </form>
+            <p>Have account? <a href="#" id="show-signin">Sign In</a></p>
+        </div>
+    </div>
 
-        <script src="app.js"></script>
-    </body>
+    <div id="dashboard" style="display: none;">
+        <h2>WELCOME: <span id="user-username"></span></h2>
+        <button id="logout-btn">LOGOUT</button>
+        <div id="user-info"></div>
+    </div>
+
+    <div id="result"></div>
+    <script src="app.js"></script>
+</body>
 </html>
