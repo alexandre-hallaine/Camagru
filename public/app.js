@@ -84,7 +84,7 @@ document.getElementById("signupForm").addEventListener("submit", async e => {
         password: document.getElementById("signup-password").value
     };
     
-    const { ok, data } = await apiCall("/api/signup", "POST", formData);
+    const { ok, data } = await apiCall("/api/auth/register", "POST", formData);
     if (ok) {
         showResult(data.message);
         document.getElementById("show-signin").click();
@@ -100,7 +100,7 @@ document.getElementById("signinForm").addEventListener("submit", async e => {
         password: document.getElementById("signin-password").value
     };
     
-    const { ok, data } = await apiCall("/api/signin", "POST", formData);
+    const { ok, data } = await apiCall("/api/auth/login", "POST", formData);
     if (ok) {
         showResult(data.message);
         checkAuth();

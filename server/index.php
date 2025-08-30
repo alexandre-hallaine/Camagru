@@ -1,136 +1,145 @@
 <?php
-session_start();
-header("Content-Type: application/json");
 
-$dsn = "mysql:host=db;dbname=camagru;charset=utf8mb4";
-$user = "root";
-$pass = "root";
+session_start();
+
+require __DIR__ . '/vendor/autoload.php';
+Dotenv\Dotenv::createImmutable(__DIR__)->load();
 
 try {
+    $dsn = $_ENV['DB_DSN'];
+    $user = $_ENV['DB_USER'];
+    $pass = $_ENV['DB_PASS'];
+
     $pdo = new PDO($dsn, $user, $pass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
     ]);
 } catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(["error" => "DB connection failed"]);
-    exit;
+    sendResponse(500, ["error" => "DB connection failed"]);
 }
 
-function sendResponse($code, $data) {
+#[NoReturn]
+function sendResponse($code, $data): void
+{
+    header("Content-Type: application/json");
     http_response_code($code);
     echo json_encode($data);
     exit;
 }
 
-function validateInput($required) {
+function validateInput($required): array
+{
     $input = json_decode(file_get_contents("php://input"), true);
     if (!$input) {
         sendResponse(400, ["error" => "Invalid JSON"]);
     }
-    
+
     foreach ($required as $field) {
         if (!isset($input[$field]) || empty(trim($input[$field]))) {
             sendResponse(400, ["error" => "Missing field: $field"]);
         }
     }
-    
+
     return array_map('trim', $input);
 }
 
-function validateEmail($email) {
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+function auth($userid)
+{
+    global $pdo;
+    $stmt = $pdo->prepare("SELECT id, username, email, confirmed FROM users WHERE id = ?");
+    $stmt->execute([$userid]);
+    $user = $stmt->fetch();
+
+    if ($user['confirmed']) {
+        $_SESSION["user_id"] = $user["id"];
+        sendResponse(200, ["message" => "Login successful"]);
+    }
+
+    try {
+        $token = bin2hex(random_bytes(32));
+        $verifyUrl = $_SERVER['HTTP_HOST'] . '/verify?token=' . urlencode($token);
+    } catch (\Random\RandomException $e) {
+        sendResponse(500, ["error" => "Server error"]);
+    }
+
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host = $_ENV['SMTP_HOST'];
+    $mail->SMTPAuth = true;
+    $mail->Username = $_ENV['SMTP_USER'];
+    $mail->Password = $_ENV['SMTP_PASS'];
+
+    $mail->Port = 465;
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+
+    $mail->setFrom($_ENV['SMTP_FROM'], $_ENV['SMTP_FROM_NAME']);
+    $mail->addAddress($user["email"], $user["username"]);
+
+    $mail->isHTML();
+    $mail->Subject = 'Verify your email - Camagru';
+    $mail->Body = '<p>Bonjour ' . htmlspecialchars($user["username"]) . ',</p>' .
+        '<p>Veuillez confirmer votre email en cliquant sur le lien ci-dessous:</p>' .
+        '<p><a href="' . htmlspecialchars($verifyUrl) . '">Confirmer mon email</a></p>';
+
+    try {
+        $mail->send();
+    } catch (Throwable $e) {
+        sendResponse(500, ["error" => $e->getMessage()]);
+    }
+
+    sendResponse(403, ["message" => "Vérifiez votre boîte mail ou renvoyez le lien."]);
+}
+
+$router = new \Bramus\Router\Router();
+$router->setBasePath('/api');
+
+$router->post('/auth/register', function() use ($pdo) {
+    $input = validateInput(["username", "email", "password"]);
+
+    if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL))
         sendResponse(400, ["error" => "Invalid email"]);
-    }
-}
-
-function validatePassword($password) {
-    if (strlen($password) < 6) {
+    if (strlen($input["password"]) < 6)
         sendResponse(400, ["error" => "Password too short"]);
+
+    $hash = password_hash($input["password"], PASSWORD_DEFAULT);
+
+    try {
+        $stmt = $pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
+        $stmt->execute([$input["username"], $input["email"], $hash]);
+        $user = $stmt->fetch();
+    } catch (PDOException $e) {
+        if ($e->getCode() == 23000)
+            sendResponse(409, ["error" => "User already exists"]);
+        else
+            sendResponse(500, ["error" => "Server error"]);
     }
-}
 
-$path = trim(parse_url($_SERVER["REQUEST_URI"], PHP_URL_PATH), "/");
-$method = $_SERVER["REQUEST_METHOD"];
+    auth($user["id"]);
+});
 
-if (strpos($path, "api/") === 0) {
-    $apiPath = substr($path, 4);
-    
-    switch ($apiPath) {
-        case "signup":
-            if ($method === "POST") {
-                $input = validateInput(["username", "email", "password"]);
-                validateEmail($input["email"]);
-                validatePassword($input["password"]);
-                
-                $hash = password_hash($input["password"], PASSWORD_DEFAULT);
-                
-                try {
-                    $stmt = $pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
-                    $stmt->execute([$input["username"], $input["email"], $hash]);
-                    sendResponse(201, ["message" => "User created"]);
-                } catch (PDOException $e) {
-                    if ($e->getCode() == 23000) {
-                        sendResponse(409, ["error" => "User already exists"]);
-                    } else {
-                        sendResponse(500, ["error" => "Server error"]);
-                    }
-                }
-            }
-            break;
-            
-        case "signin":
-            if ($method === "POST") {
-                $input = validateInput(["username", "password"]);
-                
-                try {
-                    $stmt = $pdo->prepare("SELECT id, username, password_hash FROM users WHERE username = ? OR email = ?");
-                    $stmt->execute([$input["username"], $input["username"]]);
-                    $user = $stmt->fetch();
-                    
-                    if (!$user || !password_verify($input["password"], $user["password_hash"])) {
-                        sendResponse(401, ["error" => "Invalid credentials"]);
-                    }
-                    
-                    $_SESSION["user_id"] = $user["id"];
-                    $_SESSION["username"] = $user["username"];
-                    
-                    sendResponse(200, ["message" => "Login successful"]);
-                } catch (PDOException $e) {
-                    sendResponse(500, ["error" => "Server error"]);
-                }
-            }
-            break;
-            
-        case "logout":
-            if ($method === "POST") {
-                session_destroy();
-                sendResponse(200, ["message" => "Logged out successfully"]);
-            }
-            break;
-            
-        case "check-auth":
-            if ($method === "GET") {
-                if (isset($_SESSION['user_id'])) {
-                    $stmt = $pdo->prepare("SELECT id, username, email, confirmed, notify_on_comment, created_at FROM users WHERE id = ?");
-                    $stmt->execute([$_SESSION['user_id']]);
-                    $user = $stmt->fetch();
-                    
-                    if ($user) {
-                        sendResponse(200, ["authenticated" => true, "user" => $user]);
-                    } else {
-                        sendResponse(200, ["authenticated" => false, "user" => null]);
-                    }
-                } else {
-                    sendResponse(200, ["authenticated" => false, "user" => null]);
-                }
-            }
-            break;
-            
-        default:
-            sendResponse(404, ["error" => "API endpoint not found"]);
+$router->post('/auth/login', function() use ($pdo) {
+    $input = validateInput(["username", "password"]);
+    $user = null;
+
+    try {
+        $stmt = $pdo->prepare("SELECT id, username, password_hash, confirmed FROM users WHERE username = ?");
+        $stmt->execute([$input["username"]]);
+        $user = $stmt->fetch();
+    } catch (PDOException $e) {
+        sendResponse(500, ["error" => "Server error"]);
     }
-    exit;
-}
 
-sendResponse(404, ["error" => "Not found"]);
+    if (!$user || !password_verify($input["password"], $user["password_hash"])) {
+        sendResponse(401, ["error" => "Invalid credentials"]);
+    }
+
+    auth($user["id"]);
+});
+
+$router->post('/auth/verify', function() use ($pdo) {
+});
+
+$router->post('/auth/logout', function() {
+});
+
+$router->run();
