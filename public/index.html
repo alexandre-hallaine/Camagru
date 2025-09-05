@@ -5,41 +5,31 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="auth-container">
-        <div id="signin-section">
-            <h2>USER_AUTHENTICATION</h2>
-            <form id="signinForm">
-                <label for="signin-username">USERNAME/EMAIL:</label>
-                <input type="text" id="signin-username" name="username" required />
-                <label for="signin-password">PASSWORD:</label>
-                <input type="password" id="signin-password" name="password" required />
-                <button type="submit">LOGIN</button>
+    <main>
+        <div id="signin">
+            <h2>Sign In</h2>
+            <form id="signin-form">
+                <input type="text" id="signin-username" name="username" placeholder="username" required />
+                <input type="password" id="signin-password" name="password" placeholder="password" required />
+                <button type="submit">Login</button>
             </form>
             <p>New user? <a href="#" id="show-signup">Sign Up</a></p>
         </div>
 
-        <div id="signup-section" style="display: none;">
-            <h2>USER_REGISTRATION</h2>
-            <form id="signupForm">
-                <label for="signup-username">USERNAME:</label>
-                <input type="text" id="signup-username" name="username" required />
-                <label for="signup-email">EMAIL:</label>
-                <input type="email" id="signup-email" name="email" required />
-                <label for="signup-password">PASSWORD:</label>
-                <input type="password" id="signup-password" name="password" required />
-                <button type="submit">REGISTER</button>
+        <div id="signup" style="display: none;">
+            <h2>Sign Up</h2>
+            <form id="signup-form">
+                <input type="text" id="signup-username" name="username" placeholder="username" required />
+                <input type="text" id="signup-email" name="email" placeholder="email" required />
+                <input type="password" id="signup-password" name="password" placeholder="password" required />
+                <button type="submit">Register</button>
             </form>
             <p>Have account? <a href="#" id="show-signin">Sign In</a></p>
         </div>
-    </div>
 
-    <div id="dashboard" style="display: none;">
-        <h2>WELCOME: <span id="user-username"></span></h2>
-        <button id="logout-btn">LOGOUT</button>
-        <div id="user-info"></div>
-    </div>
+        <p id="result">Anything</div>
+        </main>
 
-    <div id="result"></div>
     <script src="app.js"></script>
 </body>
 </html>

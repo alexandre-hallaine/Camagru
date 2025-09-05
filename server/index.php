@@ -57,7 +57,7 @@ function auth($userid)
 
     try {
         $token = bin2hex(random_bytes(32));
-        $verifyUrl = $_SERVER['HTTP_HOST'] . '/verify?token=' . urlencode($token);
+        $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/auth?token=' . urlencode($token);
     } catch (\Random\RandomException $e) {
         sendResponse(500, ["error" => "Server error"]);
     }
@@ -75,11 +75,10 @@ function auth($userid)
     $mail->setFrom($_ENV['SMTP_FROM'], $_ENV['SMTP_FROM_NAME']);
     $mail->addAddress($user["email"], $user["username"]);
 
-    $mail->isHTML();
     $mail->Subject = 'Verify your email - Camagru';
-    $mail->Body = '<p>Bonjour ' . htmlspecialchars($user["username"]) . ',</p>' .
-        '<p>Veuillez confirmer votre email en cliquant sur le lien ci-dessous:</p>' .
-        '<p><a href="' . htmlspecialchars($verifyUrl) . '">Confirmer mon email</a></p>';
+    $mail->Body = "Hello " . $user["username"] . ",\n\n" .
+                  "Please confirm your email by clicking the link below:\n" .
+                  $verifyUrl . "\n\n";
 
     try {
         $mail->send();
@@ -87,7 +86,7 @@ function auth($userid)
         sendResponse(500, ["error" => $e->getMessage()]);
     }
 
-    sendResponse(403, ["message" => "Vérifiez votre boîte mail ou renvoyez le lien."]);
+    sendResponse(403, ["error" => "Check your email inbox to verify your account."]);
 }
 
 $router = new \Bramus\Router\Router();
@@ -106,6 +105,9 @@ $router->post('/auth/register', function() use ($pdo) {
     try {
         $stmt = $pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
         $stmt->execute([$input["username"], $input["email"], $hash]);
+
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->execute([$pdo->lastInsertId()]);
         $user = $stmt->fetch();
     } catch (PDOException $e) {
         if ($e->getCode() == 23000)
@@ -119,7 +121,6 @@ $router->post('/auth/register', function() use ($pdo) {
 
 $router->post('/auth/login', function() use ($pdo) {
     $input = validateInput(["username", "password"]);
-    $user = null;
 
     try {
         $stmt = $pdo->prepare("SELECT id, username, password_hash, confirmed FROM users WHERE username = ?");
