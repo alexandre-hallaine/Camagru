@@ -1,9 +1,9 @@
 <?php
 
-session_start();
-
 require __DIR__ . '/vendor/autoload.php';
 Dotenv\Dotenv::createImmutable(__DIR__)->load();
+
+session_start();
 
 try {
     $dsn = $_ENV['DB_DSN'];
@@ -51,13 +51,20 @@ function auth($userid)
     $user = $stmt->fetch();
 
     if ($user['confirmed']) {
-        $_SESSION["user_id"] = $user["id"];
+        $_SESSION["id"] = $user["id"];
         sendResponse(200, ["message" => "Login successful"]);
     }
 
     try {
         $token = bin2hex(random_bytes(32));
-        $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/auth?token=' . urlencode($token);
+        $stmt = $pdo->prepare("UPDATE users SET verification_token = ? WHERE id = ?");
+        $stmt->execute([$token, $user["id"]]);
+    } catch (PDOException $e) {
+        sendResponse(500, ["error" => "Server error"]);
+    }
+
+    try {
+        $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/?token=' . urlencode($token);
     } catch (\Random\RandomException $e) {
         sendResponse(500, ["error" => "Server error"]);
     }
@@ -106,7 +113,7 @@ $router->post('/auth/register', function() use ($pdo) {
         $stmt = $pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
         $stmt->execute([$input["username"], $input["email"], $hash]);
 
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
         $stmt->execute([$pdo->lastInsertId()]);
         $user = $stmt->fetch();
     } catch (PDOException $e) {
@@ -123,24 +130,66 @@ $router->post('/auth/login', function() use ($pdo) {
     $input = validateInput(["username", "password"]);
 
     try {
-        $stmt = $pdo->prepare("SELECT id, username, password_hash, confirmed FROM users WHERE username = ?");
+        $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE username = ?");
         $stmt->execute([$input["username"]]);
         $user = $stmt->fetch();
     } catch (PDOException $e) {
         sendResponse(500, ["error" => "Server error"]);
     }
 
-    if (!$user || !password_verify($input["password"], $user["password_hash"])) {
+    if (!$user || !password_verify($input["password"], $user["password_hash"]))
         sendResponse(401, ["error" => "Invalid credentials"]);
-    }
 
     auth($user["id"]);
 });
 
 $router->post('/auth/verify', function() use ($pdo) {
+    $input = validateInput(["token"]);
+
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE verification_token = ?");
+        $stmt->execute([$input["token"]]);
+        $user = $stmt->fetch();
+    } catch (PDOException $e) {
+        sendResponse(500, ["error" => "Server error"]);
+    }
+
+    if (!$user)
+        sendResponse(401, ["error" => "Invalid token"]);
+
+    try {
+        $stmt = $pdo->prepare("UPDATE users SET confirmed = 1 WHERE id = ?");
+        $stmt->execute([$user["id"]]);
+    } catch (PDOException $e) {
+        sendResponse(500, ["error" => "Server error"]);
+    }
+
+    auth($user["id"]);
 });
 
 $router->post('/auth/logout', function() {
+    session_destroy();
+    sendResponse(200, ["message" => "Logged out successfully"]);
+});
+
+$router->get('/auth/check', function() use ($pdo) {
+    if (!isset($_SESSION['id'])) {
+        sendResponse(200, ["authenticated" => false]);
+    }
+
+    try {
+        $stmt = $pdo->prepare("SELECT id, username FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['id']]);
+        $user = $stmt->fetch();
+    } catch (PDOException $e) {
+        sendResponse(500, ["error" => "Server error"]);
+    }
+
+    if ($user) {
+        sendResponse(200, ["authenticated" => true, "username" => $user["username"]]);
+    } else {
+        sendResponse(200, ["authenticated" => false]);
+    }
 });
 
 $router->run();

@@ -23,15 +23,22 @@ function showResult(message) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    try {
-        const { ok, data } = await apiCall("/api/check-auth", "GET"); // need to work
-        if (ok && data.authenticated)
-            showResult(`Welcome back, ${data.username}!`);
-        else
-            switchVisibility(["dashboard"], "auth");
-    } catch (e) {
-        switchVisibility(["dashboard"], "auth");
-    }
+    const token = new URLSearchParams(window.location.search).get("token");
+
+    let ok, data;
+    if (token)
+        ({ ok, data } = await apiCall("/api/auth/verify", "POST", {token}));
+    else
+        ({ ok, data } = await apiCall("/api/auth/check", "GET"));
+
+    if (!ok)
+        showResult(data.error);
+    else if (data.authenticated)
+        showResult(`Welcome back, ${data.username}!`);
+    else if (token)
+        showResult("Your account has been successfully verified!");
+    else
+        showResult("You are not signed in.");
 });
 
 document.getElementById("signup-form").addEventListener("submit", async e => {
