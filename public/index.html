@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Camagru</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <main>
+        <p id="result"></p>
+        <button id="logout">Logout</button>
+    </main>
+
+    <script type="module">
+import { apiCall } from './shared.js';
+
+function showResult(message) {
+    document.getElementById("result").textContent = message;
+}
+
+(async () => {
+  const { ok, data } = await apiCall("/api/auth/check", "GET");
+
+  if (ok)
+    showResult(`Welcome ${data.username}!`);
+  else
+    window.location.href = "/auth/";
+})();
+
+document.getElementById("logout").addEventListener("click", async () => {
+  const { ok } = await apiCall("/api/auth/logout", "POST");
+  if (ok)
+    window.location.href = "/auth/";
+  else
+    showResult("Logout failed. Please try again.");
+});
+    </script>
+</body>
+</html>

@@ -52,7 +52,7 @@ function auth($userid)
 
     if ($user['confirmed']) {
         $_SESSION["id"] = $user["id"];
-        sendResponse(200, ["message" => "Login successful"]);
+        sendResponse(200, []);
     }
 
     try {
@@ -64,7 +64,7 @@ function auth($userid)
     }
 
     try {
-        $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/?token=' . urlencode($token);
+        $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/auth/?token=' . urlencode($token);
     } catch (\Random\RandomException $e) {
         sendResponse(500, ["error" => "Server error"]);
     }
@@ -93,7 +93,7 @@ function auth($userid)
         sendResponse(500, ["error" => $e->getMessage()]);
     }
 
-    sendResponse(403, ["error" => "Check your email inbox to verify your account."]);
+    sendResponse(401, ["error" => "Check your email inbox to verify your account."]);
 }
 
 $router = new \Bramus\Router\Router();
@@ -169,13 +169,12 @@ $router->post('/auth/verify', function() use ($pdo) {
 
 $router->post('/auth/logout', function() {
     session_destroy();
-    sendResponse(200, ["message" => "Logged out successfully"]);
+    sendResponse(200, []);
 });
 
 $router->get('/auth/check', function() use ($pdo) {
-    if (!isset($_SESSION['id'])) {
-        sendResponse(200, ["authenticated" => false]);
-    }
+    if (!isset($_SESSION['id']))
+        sendResponse(401, []);
 
     try {
         $stmt = $pdo->prepare("SELECT id, username FROM users WHERE id = ?");
@@ -185,11 +184,10 @@ $router->get('/auth/check', function() use ($pdo) {
         sendResponse(500, ["error" => "Server error"]);
     }
 
-    if ($user) {
-        sendResponse(200, ["authenticated" => true, "username" => $user["username"]]);
-    } else {
-        sendResponse(200, ["authenticated" => false]);
-    }
+    if (!$user)
+        sendResponse(401, []);
+
+    sendResponse(200, ["username" => $user["username"]]);
 });
 
 $router->run();

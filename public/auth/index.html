@@ -27,9 +27,67 @@
             <p>Have account? <a href="#" id="show-signin">Sign In</a></p>
         </div>
 
-        <p id="result">Anything</div>
+        <p id="result"></p>
     </main>
 
-    <script src="app.js"></script>
+    <script type="module">
+import { switchVisibility, apiCall } from '../shared.js';
+
+function showResult(message) {
+    document.getElementById("result").textContent = message;
+}
+
+(async () => {
+    const token = new URLSearchParams(window.location.search).get("token");
+
+    let ok, data;
+    if (token)
+        ({ ok, data } = await apiCall("/api/auth/verify", "POST", {token}));
+    if (!data?.verified)
+        ({ ok, data } = await apiCall("/api/auth/check", "GET"));
+
+    if (ok)
+        window.location.href = "/";
+})();
+
+document.getElementById("signup-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    
+    const { ok, data } = await apiCall("/api/auth/register", "POST", {
+        username: document.getElementById("signup-username").value,
+        email: document.getElementById("signup-email").value,
+        password: document.getElementById("signup-password").value
+    });
+
+    if (!ok)
+        showResult(data.error);
+    else
+        window.location.href = "/";
+});
+
+document.getElementById("signin-form").addEventListener("submit", async e => {
+    e.preventDefault();
+
+    const { ok, data } = await apiCall("/api/auth/login", "POST", {
+        username: document.getElementById("signin-username").value,
+        password: document.getElementById("signin-password").value
+    });
+
+    if (!ok)
+        showResult(data.error);
+    else
+        window.location.href = "/";
+});
+
+document.getElementById("show-signin").addEventListener("click", e => {
+    e.preventDefault();
+    switchVisibility(["signup"], "signin");
+});
+
+document.getElementById("show-signup").addEventListener("click", e => {
+    e.preventDefault();
+    switchVisibility(["signin"], "signup");
+});
+    </script>
 </body>
 </html>
