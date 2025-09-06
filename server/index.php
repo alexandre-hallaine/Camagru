@@ -46,7 +46,7 @@ function validateInput($required): array
 function auth($userid)
 {
     global $pdo;
-    $stmt = $pdo->prepare("SELECT id, username, email, confirmed FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, email, confirmed FROM users WHERE id = ?");
     $stmt->execute([$userid]);
     $user = $stmt->fetch();
 
@@ -57,16 +57,16 @@ function auth($userid)
 
     try {
         $token = bin2hex(random_bytes(32));
-        $stmt = $pdo->prepare("UPDATE users SET verification_token = ? WHERE id = ?");
-        $stmt->execute([$token, $user["id"]]);
+        $stmt = $pdo->prepare("INSERT INTO actions (user_id, action, token) VALUES (?, 'VERIFY_ACCOUNT', ?) ON DUPLICATE KEY UPDATE token = VALUES(token)");
+        $stmt->execute([$user["id"], $token]);
     } catch (PDOException $e) {
-        sendResponse(500, ["error" => "Server error"]);
+        sendResponse(500, ["error" => $e->getMessage()]);
     }
 
     try {
         $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/auth/?token=' . urlencode($token);
     } catch (\Random\RandomException $e) {
-        sendResponse(500, ["error" => "Server error"]);
+        sendResponse(500, ["error" => $e->getMessage()]);
     }
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
@@ -80,12 +80,14 @@ function auth($userid)
     $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
 
     $mail->setFrom($_ENV['SMTP_FROM'], $_ENV['SMTP_FROM_NAME']);
-    $mail->addAddress($user["email"], $user["username"]);
-
-    $mail->Subject = 'Verify your email - Camagru';
-    $mail->Body = "Hello " . $user["username"] . ",\n\n" .
-                  "Please confirm your email by clicking the link below:\n" .
-                  $verifyUrl . "\n\n";
+    $mail->addAddress($user["email"]);
+        
+    $mail->Subject = 'Verify your email';
+    $mail->Body =
+        "Hello,\n\n".
+        "Please confirm your email by opening the link below:\n".
+        "$verifyUrl\n\n".
+        "If you didn't create an account, you can safely ignore this email.";
 
     try {
         $mail->send();
@@ -99,45 +101,34 @@ function auth($userid)
 $router = new \Bramus\Router\Router();
 $router->setBasePath('/api');
 
-$router->post('/auth/register', function() use ($pdo) {
-    $input = validateInput(["username", "email", "password"]);
+$router->post('/auth', function() use ($pdo) {
+    $input = validateInput(["email", "password"]);
 
     if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL))
         sendResponse(400, ["error" => "Invalid email"]);
     if (strlen($input["password"]) < 6)
         sendResponse(400, ["error" => "Password too short"]);
 
-    $hash = password_hash($input["password"], PASSWORD_DEFAULT);
-
     try {
-        $stmt = $pdo->prepare("INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)");
-        $stmt->execute([$input["username"], $input["email"], $hash]);
-
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
-        $stmt->execute([$pdo->lastInsertId()]);
+        $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE email = ?");
+        $stmt->execute([$input["email"]]);
         $user = $stmt->fetch();
     } catch (PDOException $e) {
-        if ($e->getCode() == 23000)
-            sendResponse(409, ["error" => "User already exists"]);
-        else
-            sendResponse(500, ["error" => "Server error"]);
+        sendResponse(500, ["error" => $e->getMessage()]);
     }
 
-    auth($user["id"]);
-});
+    if (!$user) {
+        try {
+            $stmt = $pdo->prepare("INSERT INTO users (email, password_hash) VALUES (?, ?)");
+            $stmt->execute([$input["email"], password_hash($input["password"], PASSWORD_DEFAULT)]);
 
-$router->post('/auth/login', function() use ($pdo) {
-    $input = validateInput(["username", "password"]);
-
-    try {
-        $stmt = $pdo->prepare("SELECT id, password_hash FROM users WHERE username = ?");
-        $stmt->execute([$input["username"]]);
-        $user = $stmt->fetch();
-    } catch (PDOException $e) {
-        sendResponse(500, ["error" => "Server error"]);
-    }
-
-    if (!$user || !password_verify($input["password"], $user["password_hash"]))
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+            $stmt->execute([$pdo->lastInsertId()]);
+            $user = $stmt->fetch();
+        } catch (PDOException $e) {
+            sendResponse(500, ["error" => $e->getMessage()]);
+        }
+    } else if (!password_verify($input["password"], $user["password_hash"]))
         sendResponse(401, ["error" => "Invalid credentials"]);
 
     auth($user["id"]);
@@ -147,24 +138,24 @@ $router->post('/auth/verify', function() use ($pdo) {
     $input = validateInput(["token"]);
 
     try {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE verification_token = ?");
+        $stmt = $pdo->prepare("SELECT user_id FROM actions WHERE action = 'VERIFY_ACCOUNT' AND token = ?");
         $stmt->execute([$input["token"]]);
-        $user = $stmt->fetch();
+        $action = $stmt->fetch();
     } catch (PDOException $e) {
-        sendResponse(500, ["error" => "Server error"]);
+        sendResponse(500, ["error" => $e->getMessage()]);
     }
 
-    if (!$user)
+    if (!$action)
         sendResponse(401, ["error" => "Invalid token"]);
 
     try {
         $stmt = $pdo->prepare("UPDATE users SET confirmed = 1 WHERE id = ?");
-        $stmt->execute([$user["id"]]);
+        $stmt->execute([$action["user_id"]]);
     } catch (PDOException $e) {
-        sendResponse(500, ["error" => "Server error"]);
+        sendResponse(500, ["error" => $e->getMessage()]);
     }
 
-    auth($user["id"]);
+    auth($action["user_id"]);
 });
 
 $router->post('/auth/logout', function() {
@@ -177,17 +168,17 @@ $router->get('/auth/check', function() use ($pdo) {
         sendResponse(401, []);
 
     try {
-        $stmt = $pdo->prepare("SELECT id, username FROM users WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['id']]);
         $user = $stmt->fetch();
     } catch (PDOException $e) {
-        sendResponse(500, ["error" => "Server error"]);
+        sendResponse(500, ["error" => $e->getMessage()]);
     }
 
     if (!$user)
         sendResponse(401, []);
 
-    sendResponse(200, ["username" => $user["username"]]);
+    sendResponse(200, []);
 });
 
 $router->run();

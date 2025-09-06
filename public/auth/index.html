@@ -6,36 +6,19 @@
 </head>
 <body>
     <main>
-        <div id="signin">
-            <h2>Sign In</h2>
-            <form id="signin-form">
-                <input type="text" id="signin-username" name="username" placeholder="username" required />
-                <input type="password" id="signin-password" name="password" placeholder="password" required />
-                <button type="submit">Login</button>
-            </form>
-            <p>New user? <a href="#" id="show-signup">Sign Up</a></p>
-        </div>
-
-        <div id="signup" style="display: none;">
-            <h2>Sign Up</h2>
-            <form id="signup-form">
-                <input type="text" id="signup-username" name="username" placeholder="username" required />
-                <input type="text" id="signup-email" name="email" placeholder="email" required />
-                <input type="password" id="signup-password" name="password" placeholder="password" required />
-                <button type="submit">Register</button>
-            </form>
-            <p>Have account? <a href="#" id="show-signin">Sign In</a></p>
-        </div>
+        <h2>Authentication</h2>
+        <p>Please enter your email and password to sign in or create a new account.</p>
+        <form id="signin-form">
+            <input type="text" id="email" name="email" placeholder="email" required />
+            <input type="password" id="password" name="password" placeholder="password" required />
+            <button type="submit">Continue</button>
+        </form>
 
         <p id="result"></p>
     </main>
 
     <script type="module">
-import { switchVisibility, apiCall } from '../shared.js';
-
-function showResult(message) {
-    document.getElementById("result").textContent = message;
-}
+import { apiCall } from '../shared.js';
 
 (async () => {
     const token = new URLSearchParams(window.location.search).get("token");
@@ -50,43 +33,18 @@ function showResult(message) {
         window.location.href = "/";
 })();
 
-document.getElementById("signup-form").addEventListener("submit", async e => {
+document.querySelector("form").addEventListener("submit", async e => {
     e.preventDefault();
     
-    const { ok, data } = await apiCall("/api/auth/register", "POST", {
-        username: document.getElementById("signup-username").value,
-        email: document.getElementById("signup-email").value,
-        password: document.getElementById("signup-password").value
+    const { ok, data } = await apiCall("/api/auth", "POST", {
+        email: document.getElementById("email").value,
+        password: document.getElementById("password").value
     });
 
     if (!ok)
-        showResult(data.error);
+        document.getElementById("result").textContent = data.error;
     else
         window.location.href = "/";
-});
-
-document.getElementById("signin-form").addEventListener("submit", async e => {
-    e.preventDefault();
-
-    const { ok, data } = await apiCall("/api/auth/login", "POST", {
-        username: document.getElementById("signin-username").value,
-        password: document.getElementById("signin-password").value
-    });
-
-    if (!ok)
-        showResult(data.error);
-    else
-        window.location.href = "/";
-});
-
-document.getElementById("show-signin").addEventListener("click", e => {
-    e.preventDefault();
-    switchVisibility(["signup"], "signin");
-});
-
-document.getElementById("show-signup").addEventListener("click", e => {
-    e.preventDefault();
-    switchVisibility(["signin"], "signup");
 });
     </script>
 </body>

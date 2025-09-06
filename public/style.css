@@ -11,12 +11,12 @@ body {
 main {
     box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.3);
     border-radius: 10px;
-    padding: 40px;
+    padding: 20px 40px;
     width: 450px;
 }
 
 h2 {
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     text-align: center;
 }
 
