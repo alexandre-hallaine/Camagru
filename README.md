@@ -1,7 +1,7 @@
 # Camagru
 
-Simple Instagram like.
+A photo sharing application built with PHP, MySQL, and vanilla JavaScript.
 
 ```bash
-docker-compose up
+docker compose up -d
 ```
