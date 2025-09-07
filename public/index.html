@@ -1,38 +1,62 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Camagru</title>
-    <link rel="stylesheet" href="./style.css">
+  <title>Camagru</title>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
+  <header>
+    <button id="logout">Logout</button>
+  </header>
+
+  <div class="page">
     <main>
-        <p id="result"></p>
-        <button id="logout">Logout</button>
+      <div>
+        <div class="wrapper">
+          <video autoplay></video>
+          <img id="overlay" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
+        </div>
+        <button id="snap">Take Photo</button>
+      </div>
+
+      <div>
+        <canvas width="1440" height="1080"></canvas>
+        <button id="share">Publish</button>
+      </div>
     </main>
+    <div id="thumbnails"></div>
+  </div>
 
-    <script type="module">
+  <script type="module">
 import { apiCall } from './shared.js';
-
-function showResult(message) {
-    document.getElementById("result").textContent = message;
-}
-
-(async () => {
-  const { ok, data } = await apiCall("/api/auth/check", "GET");
-
-  if (ok)
-    showResult(`Welcome ${data.username}!`);
-  else
-    window.location.href = "/auth/";
-})();
 
 document.getElementById("logout").addEventListener("click", async () => {
   const { ok } = await apiCall("/api/auth/logout", "POST");
-  if (ok)
-    window.location.href = "/auth/";
-  else
-    showResult("Logout failed. Please try again.");
+  if (ok) window.location.href = "/auth/";
 });
-    </script>
+
+[
+  "cadre.png",
+  "costumeHomme.png",
+  "birthday.png"
+].forEach(src => {
+  const img = document.createElement("img");
+  img.src = `overlay/${src}`;
+  img.onclick = () => overlay.src = img.src;
+  document.getElementById("thumbnails").appendChild(img);
+});
+
+const video = document.querySelector("video");
+
+navigator.mediaDevices.getUserMedia({ video: true })
+  .then(stream => video.srcObject = stream)
+  .catch(err => console.error("Camera error:", err));
+
+document.getElementById("snap").onclick = () => {
+  const canvas = document.querySelector("canvas");
+  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  if (overlay.src) canvas.getContext("2d").drawImage(overlay, 0, 0, canvas.width, canvas.height);
+};
+  </script>
 </body>
 </html>
