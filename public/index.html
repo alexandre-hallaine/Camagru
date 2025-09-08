@@ -20,7 +20,7 @@
       </div>
 
       <div>
-        <canvas width="1440" height="1080"></canvas>
+        <canvas width="640" height="480"></canvas>
         <button id="share">Publish</button>
       </div>
     </main>
@@ -56,6 +56,12 @@ document.getElementById("snap").onclick = () => {
   const canvas = document.querySelector("canvas");
   canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
   if (overlay.src) canvas.getContext("2d").drawImage(overlay, 0, 0, canvas.width, canvas.height);
+};
+
+document.getElementById("share").onclick = async () => {
+  await apiCall("/api/images/upload", "POST", {
+    image: document.querySelector("canvas").toDataURL("image/jpeg", 0.7)
+  });
 };
   </script>
 </body>

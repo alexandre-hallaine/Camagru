@@ -68,6 +68,25 @@ function sendEmail($to, $subject, $body): bool
     }
 }
 
+function requireLogin(): void
+{
+    global $pdo;
+
+    if (!isset($_SESSION['id']))
+        sendResponse(401, ["message" => "Unauthorized"]);
+
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['id']]);
+        $user = $stmt->fetch();
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+
+    if (!$user)
+        sendResponse(401, ["message" => "Unauthorized"]);
+}
+
 $router = new \Bramus\Router\Router();
 $router->setBasePath('/api');
 
@@ -161,19 +180,7 @@ $router->post('/auth/logout', function() {
 });
 
 $router->get('/auth/check', function() use ($pdo) {
-    if (!isset($_SESSION['id']))
-        sendResponse(400, []);
-
-    try {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
-        $stmt->execute([$_SESSION['id']]);
-        $user = $stmt->fetch();
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
-    }
-
-    if (!$user)
-        sendResponse(401, []);
+    requireLogin();
     sendResponse(200, []);
 });
 
@@ -234,6 +241,32 @@ $router->post('/auth/reset', function() use ($pdo) {
 
     $_SESSION["id"] = $action["user_id"];
     sendResponse(200, []);
+});
+
+$router->post('/images/upload', function() use ($pdo) {
+    requireLogin();
+    $input = validateInput(["image"]);
+
+    try {
+        $stmt = $pdo->prepare("INSERT INTO images (user_id, image_data) VALUES (?, ?)");
+        $stmt->execute([$_SESSION['id'], $input["image"]]);
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+
+    sendResponse(200, []);
+});
+
+$router->get('/images', function() use ($pdo) {
+    try {
+        $stmt = $pdo->prepare("SELECT id, user_id, image_data, created_at FROM images");
+        $stmt->execute();
+        $images = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+
+    sendResponse(200, ["images" => $images]);
 });
 
 $router->run();
