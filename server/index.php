@@ -52,8 +52,9 @@ function sendEmail($to, $subject, $body): bool
     $mail->Username = $_ENV['SMTP_USER'];
     $mail->Password = $_ENV['SMTP_PASS'];
 
-    $mail->Port = 465;
-    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port = 587;
+    $mail->Timeout = 5;
 
     $mail->setFrom($_ENV['SMTP_FROM'], $_ENV['SMTP_FROM_NAME']);
     $mail->addAddress($to);
