@@ -263,11 +263,62 @@ $router->get('/images', function() use ($pdo) {
         $stmt = $pdo->prepare("SELECT id, user_id, image_data, created_at FROM images");
         $stmt->execute();
         $images = $stmt->fetchAll();
+
+        if (isset($_SESSION['id'])) {
+            $stmt = $pdo->prepare("SELECT image_id FROM likes WHERE user_id = ?");
+            $stmt->execute([$_SESSION['id']]);
+            $liked = $stmt->fetchAll();
+
+            $stmt = $pdo->prepare("SELECT image_id, user_id, body, created_at FROM comments");
+            $stmt->execute();
+            $comments = $stmt->fetchAll();
+
+            foreach ($images as &$image) {
+                $image['liked'] = in_array($image['id'], $liked);
+                $image['comments'] = array_values(array_filter($comments, fn($c) => $c['image_id'] == $image['id']));
+            }
+        }
+
+        sendResponse(200, ["images" => $images]);
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
+});
 
-    sendResponse(200, ["images" => $images]);
+$router->post('/images/(\d+)/like', function($id) use ($pdo) {
+    requireLogin();
+
+    try {
+        $stmt = $pdo->prepare("SELECT 1 FROM likes WHERE user_id = ? AND image_id = ?");
+        $stmt->execute([$_SESSION['id'], $id]);
+        $liked = (bool)$stmt->fetch();
+
+        if ($liked) {
+            $stmt = $pdo->prepare("DELETE FROM likes WHERE user_id = ? AND image_id = ?");
+            $stmt->execute([$_SESSION['id'], $id]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO likes (user_id, image_id) VALUES (?, ?)");
+            $stmt->execute([$_SESSION['id'], $id]);
+        }
+
+        sendResponse(200, ["liked" => !$liked]);
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+});
+
+$router->post('/images/(\d+)/comment', function($id) use ($pdo) {
+    requireLogin();
+    $input = validateInput(["body"]);
+
+    try {
+        $stmt = $pdo->prepare("INSERT INTO comments (user_id, image_id, body) VALUES (?, ?, ?)");
+        $stmt->execute([$_SESSION['id'], $id, $input["body"]]);
+
+        sendResponse(200, ["comment" => ["created_at" => date("Y-m-d H:i:s")]]);
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
 });
 
 $router->run();

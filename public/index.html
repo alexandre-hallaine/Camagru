@@ -14,10 +14,7 @@
 
 
   <main>
-    <section id="feed">
-      <h1>Feed</h1>
-      <p>Here is the feed of images.</p>
-    </section>
+    <section id="feed"></section>
     <section id="create" style="display:none">
       <h1>Create</h1>
       <p>Use the editor below to create a new image.</p>
@@ -27,8 +24,6 @@
       <p>Here you can change your settings.</p>
     </section>
   </main>
-
-  <div class="posts"></div>
 
   <div class="editor">
     <div>
@@ -71,44 +66,48 @@ document.getElementById("logout").addEventListener("click", async () => {
   const { ok, data } = await apiCall("/api/images", "GET");
 
   for (const image of data.images) {
+    const div = document.createElement("div");
+    document.querySelector("#feed").appendChild(div);
+
+    const name = document.createElement("h3");
+    name.textContent = image.username;
+    div.appendChild(name);
+
     const img = document.createElement("img");
     img.src = image.image_data;
+    div.appendChild(img);
 
-    const button = document.createElement("button");
-    button.textContent = image.liked ? 'Unlike' : 'Like';
-    button.addEventListener("click", async () => {
+    const like = document.createElement("button");
+    like.textContent = image.liked ? 'Unlike' : 'Like';
+    div.appendChild(like);
+    like.addEventListener("click", async () => {
       const { ok, data } = await apiCall(`/api/images/${image.id}/like`, "POST");
-      if (!ok) return alert("Error liking image");
-      button.textContent = data.liked ? 'Unlike' : 'Like';
+      if (ok) like.textContent = data.liked ? 'Unlike' : 'Like';
     });
 
-    const comments = [];
-    for (const comment of image.comments || []) { //TODO: remove the || []
-      const p = document.createElement("p");
-      p.textContent = `${comment.user}: ${comment.text}`;
-      comments.push(p);
+    console.log(image.comments);
+    for (const data of image.comments) {
+      const comment = document.createElement("p");
+      comment.textContent = `${data.user}: ${data.body}`;
+      div.appendChild(comment);
     }
 
-    const comment = document.createElement("input");
-    comment.type = "text";
-    comment.placeholder = "Add a comment";
+    const commentInput = document.createElement("input");
+    commentInput.type = "text";
+    div.appendChild(commentInput);
+
     const commentButton = document.createElement("button");
     commentButton.textContent = "Post";
+    div.appendChild(commentButton);
     commentButton.addEventListener("click", async () => {
-      const { ok, data } = await apiCall(`/api/images/${image.id}/comment`, "POST", { text: comment.value });
-      if (!ok) return alert("Error adding comment");
-      const p = document.createElement("p");
-      p.textContent = `${data.comment.user}: ${data.comment.text}`;
-      div.appendChild(p);
-      comment.value = "";
-    });
-    comments.push(comment, commentButton);
+      const { ok } = await apiCall(`/api/images/${image.id}/comment`, "POST", { body: commentInput.value });
+      if (!ok) return;
 
-    const div = document.createElement("div");
-    div.appendChild(img);
-    div.appendChild(button);
-    comments.forEach(c => div.appendChild(c));
-    document.querySelector(".posts").appendChild(div);
+      const p = document.createElement("p");
+      p.textContent = `You: ${commentInput.value}`;
+      div.appendChild(p);
+      commentInput.value = "";
+    });
   }
 })();
 
