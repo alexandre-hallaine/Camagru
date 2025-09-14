@@ -6,8 +6,27 @@
 </head>
 <body>
   <header>
+    <button data-target="feed">Feed</button>
+    <button data-target="create">Create</button>
+    <button data-target="settings">Settings</button>
     <button id="logout">Logout</button>
   </header>
+
+
+  <main>
+    <section id="feed">
+      <h1>Feed</h1>
+      <p>Here is the feed of images.</p>
+    </section>
+    <section id="create" style="display:none">
+      <h1>Create</h1>
+      <p>Use the editor below to create a new image.</p>
+    </section>
+    <section id="settings" style="display:none">
+      <h1>Settings</h1>
+      <p>Here you can change your settings.</p>
+    </section>
+  </main>
 
   <div class="posts"></div>
 
@@ -33,6 +52,20 @@
   <script type="module">
 import { apiCall } from './shared.js';
 
+document.querySelectorAll("header button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const targetId = btn.dataset.target;
+    if (!targetId) return;
+    document.querySelectorAll("main section").forEach(sec => {
+      sec.style.display = sec.id === targetId ? "block" : "none";
+    });
+  });
+});
+
+document.getElementById("logout").addEventListener("click", async () => {
+  const { ok } = await apiCall("/api/auth/logout", "POST");
+  if (ok) window.location.href = "/auth/";
+});
 
 (async () => {
   const { ok, data } = await apiCall("/api/images", "GET");
@@ -78,11 +111,6 @@ import { apiCall } from './shared.js';
     document.querySelector(".posts").appendChild(div);
   }
 })();
-
-document.getElementById("logout").addEventListener("click", async () => {
-  const { ok } = await apiCall("/api/auth/logout", "POST");
-  if (ok) window.location.href = "/auth/";
-});
 
 [
   "cadre.png",

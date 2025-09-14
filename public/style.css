@@ -1,8 +1,12 @@
 header {
-    background-color: #333;
     display: flex;
     justify-content: center;
-    padding: 10px;
+}
+
+header button {
+    margin: 10px;
+    padding: 10px 20px;
+    border-radius: 5px;
 }
 
 .editor {
