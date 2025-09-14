@@ -5,17 +5,13 @@ header {
     padding: 10px;
 }
 
-.page {
+.editor {
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
-main {
-    display: flex;
-}
-
-main > div {
+.editor > div {
     margin: 10px;
     display: flex;
     flex-direction: column;

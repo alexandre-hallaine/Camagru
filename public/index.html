@@ -2,15 +2,17 @@
 <html lang="en">
 <head>
   <title>Camagru</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="../style.css">
 </head>
 <body>
   <header>
     <button id="logout">Logout</button>
   </header>
 
-  <div class="page">
-    <main>
+  <div class="posts"></div>
+
+  <div class="editor">
+    <div>
       <div>
         <div class="wrapper">
           <video autoplay></video>
@@ -23,12 +25,59 @@
         <canvas width="640" height="480"></canvas>
         <button id="share">Publish</button>
       </div>
-    </main>
+    </div>
+
     <div id="thumbnails"></div>
   </div>
 
   <script type="module">
 import { apiCall } from './shared.js';
+
+
+(async () => {
+  const { ok, data } = await apiCall("/api/images", "GET");
+
+  for (const image of data.images) {
+    const img = document.createElement("img");
+    img.src = image.image_data;
+
+    const button = document.createElement("button");
+    button.textContent = image.liked ? 'Unlike' : 'Like';
+    button.addEventListener("click", async () => {
+      const { ok, data } = await apiCall(`/api/images/${image.id}/like`, "POST");
+      if (!ok) return alert("Error liking image");
+      button.textContent = data.liked ? 'Unlike' : 'Like';
+    });
+
+    const comments = [];
+    for (const comment of image.comments || []) { //TODO: remove the || []
+      const p = document.createElement("p");
+      p.textContent = `${comment.user}: ${comment.text}`;
+      comments.push(p);
+    }
+
+    const comment = document.createElement("input");
+    comment.type = "text";
+    comment.placeholder = "Add a comment";
+    const commentButton = document.createElement("button");
+    commentButton.textContent = "Post";
+    commentButton.addEventListener("click", async () => {
+      const { ok, data } = await apiCall(`/api/images/${image.id}/comment`, "POST", { text: comment.value });
+      if (!ok) return alert("Error adding comment");
+      const p = document.createElement("p");
+      p.textContent = `${data.comment.user}: ${data.comment.text}`;
+      div.appendChild(p);
+      comment.value = "";
+    });
+    comments.push(comment, commentButton);
+
+    const div = document.createElement("div");
+    div.appendChild(img);
+    div.appendChild(button);
+    comments.forEach(c => div.appendChild(c));
+    document.querySelector(".posts").appendChild(div);
+  }
+})();
 
 document.getElementById("logout").addEventListener("click", async () => {
   const { ok } = await apiCall("/api/auth/logout", "POST");
@@ -41,7 +90,7 @@ document.getElementById("logout").addEventListener("click", async () => {
   "birthday.png"
 ].forEach(src => {
   const img = document.createElement("img");
-  img.src = `overlay/${src}`;
+  img.src = `./overlay/${src}`;
   img.onclick = () => overlay.src = img.src;
   document.getElementById("thumbnails").appendChild(img);
 });
