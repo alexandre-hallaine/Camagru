@@ -1,6 +1,13 @@
 services:
+  composer_install:
+    image: composer:2
+    working_dir: /var/www/server
+    command: composer install --no-interaction --prefer-dist --no-progress
+    volumes:
+      - ./server:/var/www/server
+
   nginx:
-    image: nginx:alpine
+    image: nginx:1.27-alpine
     ports:
       - "8080:80"
     volumes:
@@ -16,15 +23,19 @@ services:
     volumes:
       - ./server:/var/www/server
     depends_on:
+      - composer_install
       - db
 
   db:
-    image: mariadb:11
+    image: mariadb:11.4
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: camagru
+    ports:
+      - "3306:3306"
     volumes:
       - db_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
 volumes:
   db_data:

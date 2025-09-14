@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Camagru</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+    <main>
+        <h2>Reset Password</h2>
+        <form>
+            <input type="password" id="password" name="password" placeholder="password" />
+            <button type="submit">Continue</button>
+        </form>
+
+        <p id="result"></p>
+    </main>
+
+    <script type="module">
+import { apiCall } from '../../shared.js';
+
+document.querySelector("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    
+    const { ok, data } = await apiCall("/api/auth/reset", "POST", {
+        token: new URLSearchParams(window.location.search).get("token"),
+        password: document.getElementById("password").value
+    });
+
+    if (!ok)
+        document.getElementById("result").textContent = data.message;
+    else
+        window.location.href = "/";
+});
+    </script>
+</body>
+</html>

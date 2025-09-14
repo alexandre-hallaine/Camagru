@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Camagru</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <main>
+        <h2>Authentication</h2>
+        <p>Please enter your email and password to sign in or create a new account.</p>
+        <form>
+            <input type="text" id="email" name="email" placeholder="email" required />
+            <input type="password" id="password" name="password" placeholder="password" />
+            <div>
+                <button id="reset-password" type="button">Reset Password</button>
+                <button type="submit">Continue</button>
+            </div>
+        </form>
+
+        <p id="result"></p>
+    </main>
+
+    <script type="module">
+import { apiCall } from '../shared.js';
+
+(async () => {
+    const token = new URLSearchParams(window.location.search).get("token");
+
+    let ok, data;
+    if (token)
+        ({ ok, data } = await apiCall("/api/auth/verify", "POST", {token}));
+    if (!data?.verified)
+        ({ ok, data } = await apiCall("/api/auth/check", "GET"));
+
+    if (ok)
+        window.location.href = "/";
+})();
+
+document.querySelector("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    
+    const { ok, data } = await apiCall("/api/auth", "POST", {
+        email: document.getElementById("email").value,
+        password: document.getElementById("password").value
+    });
+
+    if (!ok)
+        document.getElementById("result").textContent = data.message;
+    else
+        window.location.href = "/";
+});
+
+document.getElementById("reset-password").addEventListener("click", async e => {
+    const { ok, data } = await apiCall("/api/auth/reset/send", "POST", {
+        email: document.getElementById("email").value,
+    });
+
+    document.getElementById("result").textContent = data.message;
+});
+    </script>
+</body>
+</html>
