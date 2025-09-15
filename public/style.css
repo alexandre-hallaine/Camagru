@@ -22,7 +22,7 @@ form {
     flex-direction: column;
 }
 
-#feed, #feed > div {
+div {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -30,6 +30,7 @@ form {
 
 .action {
     display: flex;
+    flex-direction: row;
     width: 100%;
     justify-content: space-between;
 }
