@@ -63,9 +63,7 @@ let logged = false;
 
   document.querySelector("header button#logout").textContent = "Login";
   document.querySelector("header button[data-target='settings']").remove();
-  document.querySelector("section #settings").remove();
   document.querySelector("header button[data-target='create']").remove();
-  document.querySelector("section #create").remove();
 })();
 
 document.querySelectorAll("header button").forEach(btn => {
@@ -111,44 +109,52 @@ document.querySelector("section#settings form").addEventListener("submit", async
     document.querySelector("#feed").appendChild(div);
     div.classList.add("card");
 
-    const name = document.createElement("h3");
-    name.textContent = image.username;
-    div.appendChild(name);
-
     const img = document.createElement("img");
     img.src = image.content;
     div.appendChild(img);
 
+    const action = document.createElement("div");
+    div.appendChild(action);
+    action.classList.add("action");
+
+    const name = document.createElement("h3");
+    name.textContent = image.user.username;
+    action.appendChild(name);
+
     const like = document.createElement("button");
     like.textContent = image.liked ? 'Unlike' : 'Like';
-    div.appendChild(like);
+    action.appendChild(like);
     like.addEventListener("click", async () => {
       const { ok, data } = await apiCall(`/api/images/${image.id}/like`, "POST");
       if (ok) like.textContent = data.liked ? 'Unlike' : 'Like';
     });
 
-    for (const data of image.comments) {
-      const comment = document.createElement("p");
-      comment.textContent = `${data.user}: ${data.body}`;
-      div.appendChild(comment);
-    }
+    const comments = document.createElement("div");
+    div.appendChild(comments);
+    comments.classList.add("comments");
 
     const commentInput = document.createElement("input");
     commentInput.type = "text";
-    div.appendChild(commentInput);
+    action.appendChild(commentInput);
 
     const commentButton = document.createElement("button");
     commentButton.textContent = "Post";
-    div.appendChild(commentButton);
+    action.appendChild(commentButton);
     commentButton.addEventListener("click", async () => {
       const { ok } = await apiCall(`/api/images/${image.id}/comment`, "POST", { body: commentInput.value });
       if (!ok) return;
 
       const p = document.createElement("p");
       p.textContent = `You: ${commentInput.value}`;
-      div.appendChild(p);
+      comments.appendChild(p);
       commentInput.value = "";
     });
+
+    for (const data of image.comments) {
+      const comment = document.createElement("p");
+      comment.textContent = `${data.user.username}: ${data.body}`;
+      comments.appendChild(comment);
+    }
   }
 })();
 
