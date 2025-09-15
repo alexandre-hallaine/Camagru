@@ -35,7 +35,7 @@ function validateInput($required): array
     }
 
     foreach ($required as $field) {
-        if (!isset($input[$field]) || empty(trim($input[$field]))) {
+        if (!isset($input[$field])) {
             sendResponse(400, ["message" => "Missing field: $field"]);
         }
     }
@@ -191,7 +191,7 @@ $router->post('/auth/reset', function() use ($pdo) {
     action($user["id"], 'RESET_PASSWORD', ["password" => password_hash($input["password"], PASSWORD_DEFAULT)]);
 });
 
-$router->post('/auth/verify', function() use ($pdo) {
+$router->post('/auth/token', function() use ($pdo) {
     $input = validateInput(["token"]);
 
     try {
@@ -234,76 +234,60 @@ $router->post('/auth/logout', function() {
     sendResponse(200, []);
 });
 
-$router->get('/auth/check', function() use ($pdo) {
+$router->get('/auth/validate', function() use ($pdo) {
     requireLogin();
     sendResponse(200, []);
 });
 
-$router->post('/auth/reset/send', function() use ($pdo) {
-    $input = validateInput(["email"]);
+$router->get('/settings', function() use ($pdo) {
+    requireLogin();
 
     try {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-        $stmt->execute([$input["email"]]);
-        $user = $stmt->fetch();
-
-        $token = bin2hex(random_bytes(32));
-        $stmt = $pdo->prepare("INSERT INTO actions (user_id, action, token) VALUES (?, 'RESET_PASSWORD', ?) ON DUPLICATE KEY UPDATE token = VALUES(token)");
-        $stmt->execute([$user["id"], $token]);
+        $stmt = $pdo->prepare("SELECT email, notify_comments FROM settings WHERE user_id = ?");
+        $stmt->execute([$_SESSION['id']]);
+        $settings = $stmt->fetch();
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
 
-    try {
-        $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/auth/reset/?token=' . urlencode($token);
-    } catch (\Random\RandomException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
-    }
-
-    if (!sendEmail($input["email"], "Reset your password",
-        "Hello,\n\n".
-        "You can reset your password by opening the link below:\n".
-        "$verifyUrl\n\n".
-        "If you didn't request a password reset, you can safely ignore this email."
-    ))
-        sendResponse(500, ["message" => "Failed to send verification email"]);
-    sendResponse(200, ["message" => "Check your email inbox to reset your password."]);
+    sendResponse(200, [
+        "email" => $settings["email"],
+        "notify_comments" => (bool)$settings["notify_comments"]
+    ]);
 });
 
-$router->post('/auth/reset', function() use ($pdo) {
-    $input = validateInput(["token", "password"]);
+$router->post('/settings', function() use ($pdo) {
+    requireLogin();
+    $input = validateInput(["email", "notify_comments"]);
 
-    if (strlen($input["password"]) < 6)
-        sendResponse(400, ["message" => "Password too short"]);
+    if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL))
+        sendResponse(400, ["message" => "Invalid email"]);
 
     try {
-        $stmt = $pdo->prepare("SELECT user_id FROM actions WHERE action = 'RESET_PASSWORD' AND token = ?");
-        $stmt->execute([$input["token"]]);
-        $action = $stmt->fetch();
+        $smtp = $pdo->prepare("SELECT email, notify_comments FROM settings WHERE user_id = ?");
+        $smtp->execute([$_SESSION['id']]);
+        $settings = $smtp->fetch();
+
+        if ($settings["notify_comments"] !== (int)$input["notify_comments"]) {
+            $stmt = $pdo->prepare("UPDATE settings SET notify_comments = ? WHERE user_id = ?");
+            $stmt->execute([(int)$input["notify_comments"], $_SESSION['id']]);
+        }
+
+        if ($settings["email"] !== $input["email"])
+            action($_SESSION['id'], 'CHANGE_EMAIL', ["email" => $input["email"]]);
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
 
-    if (!$action)
-        sendResponse(400, ["message" => "Invalid token"]);
-
-    try {
-        $stmt = $pdo->prepare("UPDATE users SET password_hash = ?, confirmed = 1 WHERE id = ?");
-        $stmt->execute([password_hash($input["password"], PASSWORD_DEFAULT), $action["user_id"]]);
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
-    }
-
-    $_SESSION["id"] = $action["user_id"];
     sendResponse(200, []);
 });
 
-$router->post('/images/upload', function() use ($pdo) {
+$router->post('/images', function() use ($pdo) {
     requireLogin();
     $input = validateInput(["image"]);
 
     try {
-        $stmt = $pdo->prepare("INSERT INTO images (user_id, image_data) VALUES (?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO images (user_id, content) VALUES (?, ?)");
         $stmt->execute([$_SESSION['id'], $input["image"]]);
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
@@ -314,22 +298,35 @@ $router->post('/images/upload', function() use ($pdo) {
 
 $router->get('/images', function() use ($pdo) {
     try {
-        $stmt = $pdo->prepare("SELECT id, user_id, image_data, created_at FROM images");
+        $stmt = $pdo->prepare("SELECT id, user_id, content, created_at FROM images");
         $stmt->execute();
         $images = $stmt->fetchAll();
 
+        $stmt = $pdo->prepare("SELECT id, username FROM users");
+        $stmt->execute();
+        $users = $stmt->fetchAll();
+        $users = array_combine(array_map(fn($u) => $u['id'], $users), $users);
+
+        $stmt = $pdo->prepare("SELECT image_id, user_id, body, created_at FROM comments");
+        $stmt->execute();
+        $comments = $stmt->fetchAll();
+        
         if (isset($_SESSION['id'])) {
             $stmt = $pdo->prepare("SELECT image_id FROM likes WHERE user_id = ?");
             $stmt->execute([$_SESSION['id']]);
             $liked = $stmt->fetchAll();
+            $liked = array_map(fn($l) => $l['image_id'], $liked);
+        }
 
-            $stmt = $pdo->prepare("SELECT image_id, user_id, body, created_at FROM comments");
-            $stmt->execute();
-            $comments = $stmt->fetchAll();
-
-            foreach ($images as &$image) {
-                $image['liked'] = in_array($image['id'], $liked);
-                $image['comments'] = array_values(array_filter($comments, fn($c) => $c['image_id'] == $image['id']));
+        foreach ($images as &$image) {
+            $image['liked'] = isset($liked) && in_array($image['id'], $liked);
+            $image['user'] = $users[$image['user_id']];
+            unset($image['user_id']);
+            
+            $image['comments'] = array_values(array_filter($comments, fn($c) => $c['image_id'] === $image['id']));
+            foreach ($image['comments'] as &$comment) {
+                $comment['user'] = $users[$comment['user_id']];
+                unset($comment['user_id'], $comment['image_id']);
             }
         }
 

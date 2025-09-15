@@ -16,36 +16,57 @@
   <main>
     <section id="feed"></section>
     <section id="create" style="display:none">
-      <h1>Create</h1>
-      <p>Use the editor below to create a new image.</p>
+      <div class="editor">
+        <div>
+          <div>
+            <div class="wrapper">
+              <video autoplay></video>
+              <img id="overlay" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
+            </div>
+            <button id="snap">Take Photo</button>
+          </div>
+
+          <div>
+            <canvas width="640" height="480"></canvas>
+            <button id="share">Publish</button>
+          </div>
+        </div>
+
+        <div id="thumbnails"></div>
     </section>
-    <section id="settings" style="display:none">
-      <h1>Settings</h1>
-      <p>Here you can change your settings.</p>
+    <section id="settings" style="display:none" class="card">
+      <h2>Settings</h2>
+      <form>
+        <input type="email" id="email" placeholder="New email" />
+        <div>
+          <label for="notify-comments">Notify me by email when someone comments on my pictures</label>
+          <input type="checkbox" id="notify-comments" />
+        </div>
+        <button type="submit">Update</button>
+      </form>
     </section>
   </main>
 
-  <div class="editor">
-    <div>
-      <div>
-        <div class="wrapper">
-          <video autoplay></video>
-          <img id="overlay" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
-        </div>
-        <button id="snap">Take Photo</button>
-      </div>
-
-      <div>
-        <canvas width="640" height="480"></canvas>
-        <button id="share">Publish</button>
-      </div>
-    </div>
-
-    <div id="thumbnails"></div>
   </div>
 
   <script type="module">
 import { apiCall } from './shared.js';
+
+let logged = false;
+
+(async () => {
+  const { ok } = await apiCall("/api/auth/validate", "GET");
+  if (ok) {
+    logged = true;
+    return;
+  }
+
+  document.querySelector("header button#logout").textContent = "Login";
+  document.querySelector("header button[data-target='settings']").remove();
+  document.querySelector("section #settings").remove();
+  document.querySelector("header button[data-target='create']").remove();
+  document.querySelector("section #create").remove();
+})();
 
 document.querySelectorAll("header button").forEach(btn => {
   btn.addEventListener("click", () => {
@@ -63,18 +84,39 @@ document.getElementById("logout").addEventListener("click", async () => {
 });
 
 (async () => {
+  let { ok, data } = await apiCall("/api/settings", "GET");
+  if (!ok) return;
+
+  document.getElementById("email").value = data.email;
+  document.getElementById("notify-comments").checked = data.notify_comments;
+})();
+
+document.querySelector("section#settings form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const { ok, data } = await apiCall("/api/settings", "POST", {
+    email: document.getElementById("email").value,
+    notify_comments: document.getElementById("notify-comments").checked
+  });
+
+  if (!ok) alert(data.message);
+  else alert("Settings updated");
+});
+
+(async () => {
   const { ok, data } = await apiCall("/api/images", "GET");
 
   for (const image of data.images) {
     const div = document.createElement("div");
     document.querySelector("#feed").appendChild(div);
+    div.classList.add("card");
 
     const name = document.createElement("h3");
     name.textContent = image.username;
     div.appendChild(name);
 
     const img = document.createElement("img");
-    img.src = image.image_data;
+    img.src = image.content;
     div.appendChild(img);
 
     const like = document.createElement("button");
@@ -85,7 +127,6 @@ document.getElementById("logout").addEventListener("click", async () => {
       if (ok) like.textContent = data.liked ? 'Unlike' : 'Like';
     });
 
-    console.log(image.comments);
     for (const data of image.comments) {
       const comment = document.createElement("p");
       comment.textContent = `${data.user}: ${data.body}`;
@@ -135,7 +176,7 @@ document.getElementById("snap").onclick = () => {
 };
 
 document.getElementById("share").onclick = async () => {
-  await apiCall("/api/images/upload", "POST", {
+  await apiCall("/api/images", "POST", {
     image: document.querySelector("canvas").toDataURL("image/jpeg", 0.7)
   });
 };

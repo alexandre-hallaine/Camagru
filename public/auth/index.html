@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <title>Camagru</title>
-    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="../style.css">
 </head>
 <body>
     <header>
@@ -11,7 +11,7 @@
         <button data-target="reset">Reset</button>
     </header>
 
-    <main>
+    <main class="card">
         <section id="login">
             <h2>Login</h2>
             <form id="login-form">
@@ -55,7 +55,7 @@ document.querySelectorAll("header button").forEach(btn => {
     const token = new URLSearchParams(window.location.search).get("token");
     if (!token) return;
 
-    const { ok, data } = await apiCall("/api/auth/verify", "POST", { token });
+    const { ok, data } = await apiCall("/api/auth/token", "POST", { token });
     if (ok) window.location.href = "/";
 })();
 
