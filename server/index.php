@@ -88,11 +88,66 @@ function requireLogin(): void
         sendResponse(401, ["message" => "Unauthorized"]);
 }
 
+function action($userId, $kind, $payload = null): void
+{
+    global $pdo;
+
+    try {
+        $token = bin2hex(random_bytes(32));
+        $stmt = $pdo->prepare("INSERT INTO actions (user_id, kind, payload, token) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token), payload = VALUES(payload)");
+        $stmt->execute([$userId, $kind, $payload ? json_encode($payload) : null, $token]);
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    } catch (\Random\RandomException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+
+    $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/auth/?token=' . urlencode($token);
+
+    try {
+        $stmt = $pdo->prepare("SELECT email FROM settings WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $settings = $stmt->fetch();
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+
+    if (!sendEmail($settings["email"], "Action required",
+        "Hello,\n\n".
+        "Please complete the action by opening the link below:\n".
+        "$verifyUrl\n\n".
+        "If you didn't request this, you can safely ignore this email."
+    ))
+        sendResponse(500, ["message" => "Failed to send verification email"]);
+    sendResponse(400, ["message" => "Check your email inbox to complete the action."]);
+}
+
 $router = new \Bramus\Router\Router();
 $router->setBasePath('/api');
 
-$router->post('/auth', function() use ($pdo) {
-    $input = validateInput(["email", "password"]);
+$router->post('/auth/login', function() use ($pdo) {
+    $input = validateInput(["username", "password"]);
+
+    try {
+        $stmt = $pdo->prepare("SELECT id, password_hash, is_confirmed FROM users WHERE username = ?");
+        $stmt->execute([$input["username"]]);
+        $user = $stmt->fetch();
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+
+    if (!$user || !password_verify($input["password"], $user["password_hash"]))
+        sendResponse(400, ["message" => "Invalid credentials"]);
+
+    if (!$user['is_confirmed'])
+        action($user["id"], 'VERIFY_ACCOUNT');
+
+    $_SESSION["id"] = $user["id"];
+    sendResponse(200, []);
+});
+
+$router->post('/auth/register', function() use ($pdo) {
+    $input = validateInput(["email", "username", "password"]);
 
     if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL))
         sendResponse(400, ["message" => "Invalid email"]);
@@ -100,61 +155,47 @@ $router->post('/auth', function() use ($pdo) {
         sendResponse(400, ["message" => "Password too short"]);
 
     try {
-        $stmt = $pdo->prepare("SELECT id, password_hash, email, confirmed FROM users WHERE email = ?");
-        $stmt->execute([$input["email"]]);
+        $stmt = $pdo->prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)");
+        $stmt->execute([$input["username"], password_hash($input["password"], PASSWORD_DEFAULT)]);
+
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+        $stmt->execute([$pdo->lastInsertId()]);
+        $user = $stmt->fetch();
+
+        $stmt = $pdo->prepare("INSERT INTO settings (user_id, email) VALUES (?, ?)");
+        $stmt->execute([$user["id"], $input["email"]]);
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+
+    action($user["id"], 'VERIFY_ACCOUNT');
+});
+
+$router->post('/auth/reset', function() use ($pdo) {
+    $input = validateInput(["username", "password"]);
+
+    if (strlen($input["password"]) < 6)
+        sendResponse(400, ["message" => "Password too short"]);
+
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ?");
+        $stmt->execute([$input["username"]]);
         $user = $stmt->fetch();
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
 
-    if (!$user) {
-        try {
-            $stmt = $pdo->prepare("INSERT INTO users (email, password_hash) VALUES (?, ?)");
-            $stmt->execute([$input["email"], password_hash($input["password"], PASSWORD_DEFAULT)]);
+    if (!$user)
+        sendResponse(400, ["message" => "Invalid username"]);
 
-            $stmt = $pdo->prepare("SELECT id, email, confirmed FROM users WHERE id = ?");
-            $stmt->execute([$pdo->lastInsertId()]);
-            $user = $stmt->fetch();
-        } catch (PDOException $e) {
-            sendResponse(500, ["message" => $e->getMessage()]);
-        }
-    } else if (!password_verify($input["password"], $user["password_hash"]))
-        sendResponse(400, ["message" => "Invalid credentials"]);
-
-    if ($user['confirmed']) {
-        $_SESSION["id"] = $user["id"];
-        sendResponse(200, []);
-    }
-
-    try {
-        $token = bin2hex(random_bytes(32));
-        $stmt = $pdo->prepare("INSERT INTO actions (user_id, action, token) VALUES (?, 'VERIFY_ACCOUNT', ?) ON DUPLICATE KEY UPDATE token = VALUES(token)");
-        $stmt->execute([$user["id"], $token]);
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
-    }
-
-    try {
-        $verifyUrl = "http://" . $_SERVER['HTTP_HOST'] . '/auth/?token=' . urlencode($token);
-    } catch (\Random\RandomException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
-    }
-
-    if (!sendEmail($user["email"], "Verify your email",
-        "Hello,\n\n".
-        "Please confirm your email by opening the link below:\n".
-        "$verifyUrl\n\n".
-        "If you didn't create an account, you can safely ignore this email."
-    ))
-        sendResponse(500, ["message" => "Failed to send verification email"]);
-    sendResponse(401, ["message" => "Check your email inbox to verify your account."]);
+    action($user["id"], 'RESET_PASSWORD', ["password" => password_hash($input["password"], PASSWORD_DEFAULT)]);
 });
 
 $router->post('/auth/verify', function() use ($pdo) {
     $input = validateInput(["token"]);
 
     try {
-        $stmt = $pdo->prepare("SELECT user_id FROM actions WHERE action = 'VERIFY_ACCOUNT' AND token = ?");
+        $stmt = $pdo->prepare("SELECT user_id, kind, payload FROM actions WHERE token = ?");
         $stmt->execute([$input["token"]]);
         $action = $stmt->fetch();
     } catch (PDOException $e) {
@@ -164,9 +205,22 @@ $router->post('/auth/verify', function() use ($pdo) {
     if (!$action)
         sendResponse(400, ["message" => "Invalid token"]);
 
+    $payload = $action["payload"] ? json_decode($action["payload"], true) : null;
+
     try {
-        $stmt = $pdo->prepare("UPDATE users SET confirmed = 1 WHERE id = ?");
-        $stmt->execute([$action["user_id"]]);
+        if ($action["kind"] === 'VERIFY_ACCOUNT') {
+            $stmt = $pdo->prepare("UPDATE users SET is_confirmed = 1 WHERE id = ?");
+            $stmt->execute([$action["user_id"]]);
+        } else if ($action["kind"] === 'RESET_PASSWORD') {
+            $stmt = $pdo->prepare("UPDATE users SET password_hash = ?, is_confirmed = 1 WHERE id = ?");
+            $stmt->execute([$payload["password"], $action["user_id"]]);
+        } else if ($action["kind"] === 'CHANGE_EMAIL') {
+            $stmt = $pdo->prepare("UPDATE settings SET email = ? WHERE user_id = ?");
+            $stmt->execute([$payload["email"], $action["user_id"]]);
+        }
+
+        $smtp = $pdo->prepare("DELETE FROM actions WHERE token = ?");
+        $smtp->execute([$input["token"]]);
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
