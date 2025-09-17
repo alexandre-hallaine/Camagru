@@ -5,8 +5,12 @@ body {
 }
 
 button, input {
-    margin: 10px;
     padding: 10px 20px;
+}
+
+header {
+    display: flex;
+    gap: 20px;
 }
 
 .card {
@@ -28,9 +32,23 @@ div {
     align-items: center;
 }
 
-.action {
+.action,
+.action > div,
+.comments,
+.comments > div {
     display: flex;
     flex-direction: row;
     width: 100%;
+}
+
+.action {
     justify-content: space-between;
+}
+
+.comments {
+    flex-direction: column;
+}
+
+.comments > .action {
+    margin-bottom: 20px;
 }

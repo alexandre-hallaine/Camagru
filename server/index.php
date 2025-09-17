@@ -246,19 +246,24 @@ $router->get('/settings', function() use ($pdo) {
         $stmt = $pdo->prepare("SELECT email, notify_comments FROM settings WHERE user_id = ?");
         $stmt->execute([$_SESSION['id']]);
         $settings = $stmt->fetch();
+
+        $stmt = $pdo->prepare("SELECT username FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['id']]);
+        $user = $stmt->fetch();
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
 
     sendResponse(200, [
+        "notify_comments" => (bool)$settings["notify_comments"],
         "email" => $settings["email"],
-        "notify_comments" => (bool)$settings["notify_comments"]
+        "username" => $user["username"],
     ]);
 });
 
 $router->post('/settings', function() use ($pdo) {
     requireLogin();
-    $input = validateInput(["email", "notify_comments"]);
+    $input = validateInput(["notify_comments", "email", "username", "password"]);
 
     if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL))
         sendResponse(400, ["message" => "Invalid email"]);
@@ -275,6 +280,23 @@ $router->post('/settings', function() use ($pdo) {
 
         if ($settings["email"] !== $input["email"])
             action($_SESSION['id'], 'CHANGE_EMAIL', ["email" => $input["email"]]);
+
+        $stmt = $pdo->prepare("SELECT username, password_hash FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['id']]);
+        $user = $stmt->fetch();
+
+        if ($user["username"] !== $input["username"]) {
+            $stmt = $pdo->prepare("UPDATE users SET username = ? WHERE id = ?");
+            $stmt->execute([$input["username"], $_SESSION['id']]);
+        }
+
+        if (strlen($input["password"]) > 0) {
+            if (strlen($input["password"]) < 6)
+                sendResponse(400, ["message" => "Password too short"]);
+
+            $stmt = $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+            $stmt->execute([password_hash($input["password"], PASSWORD_DEFAULT), $_SESSION['id']]);
+        }
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
@@ -366,7 +388,23 @@ $router->post('/images/(\d+)/comment', function($id) use ($pdo) {
         $stmt = $pdo->prepare("INSERT INTO comments (user_id, image_id, body) VALUES (?, ?, ?)");
         $stmt->execute([$_SESSION['id'], $id, $input["body"]]);
 
-        sendResponse(200, ["comment" => ["created_at" => date("Y-m-d H:i:s")]]);
+        $stmt = $pdo->prepare("SELECT username FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['id']]);
+        $user = $stmt->fetch();
+
+        $stmt = $pdo->prepare("SELECT notify_comments, email FROM settings WHERE user_id = (SELECT user_id FROM images WHERE id = ?)");
+        $stmt->execute([$id]);
+        $settings = $stmt->fetch();
+
+        if ($settings["notify_comments"])
+            sendEmail($settings["email"], "New comment on your image",
+                "Hello,\n\n".
+                "User {$user['username']} commented on your image:\n\n".
+                "{$input['body']}\n\n".
+                "If you didn't expect this, you can safely ignore this email."
+            );
+
+        sendResponse(200, ["created_at" => date('Y-m-d H:i:s')]);
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }

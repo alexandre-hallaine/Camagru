@@ -41,11 +41,13 @@
     <section id="settings" style="display:none" class="card">
       <h2>Settings</h2>
       <form>
-        <input type="email" id="email" placeholder="New email" />
-        <div>
+        <div style="display: inline-block;">
           <label for="notify-comments">Notify me by email when someone comments on my pictures</label>
           <input type="checkbox" id="notify-comments" />
         </div>
+        <input type="email" id="email" placeholder="New email" />
+        <input type="text" id="username" placeholder="New username" />
+        <input type="password" id="password" placeholder="New password" />
         <button type="submit">Update</button>
       </form>
     </section>
@@ -89,41 +91,52 @@ document.getElementById("logout").addEventListener("click", async () => {
   let { ok, data } = await apiCall("/api/settings", "GET");
   if (!ok) return;
 
-  document.getElementById("email").value = data.email;
   document.getElementById("notify-comments").checked = data.notify_comments;
+  document.getElementById("email").value = data.email;
+  document.getElementById("username").value = data.username;
 })();
 
 document.querySelector("section#settings form").addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const { ok, data } = await apiCall("/api/settings", "POST", {
+    notify_comments: document.getElementById("notify-comments").checked,
     email: document.getElementById("email").value,
-    notify_comments: document.getElementById("notify-comments").checked
+    username: document.getElementById("username").value,
+    password: document.getElementById("password").value,
   });
 
   if (!ok) alert(data.message);
-  else alert("Settings updated");
+  else {
+    alert("Settings updated");
+    window.location.reload();
+  }
 });
 
 (async () => {
   const { ok, data } = await apiCall("/api/images", "GET");
 
-  for (const image of data.images) {
+  for (const image of data.images.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))) {
     const div = document.createElement("div");
-    document.querySelector("#feed").appendChild(div);
     div.classList.add("card");
+    div.classList.add("image");
+    document.querySelector("#feed").appendChild(div);
 
     const img = document.createElement("img");
     img.src = image.content;
     div.appendChild(img);
 
     const action = document.createElement("div");
-    div.appendChild(action);
     action.classList.add("action");
+    div.appendChild(action);
 
-    const name = document.createElement("h3");
-    name.textContent = image.user.username;
-    action.appendChild(name);
+    const username = document.createElement("h3");
+    username.textContent = image.user.username;
+    action.appendChild(username);
+
+    const date = document.createElement("em");
+    date.textContent = `Posted on ${new Date(image.created_at).toLocaleString()}`;
+    action.appendChild(date);
 
     const like = document.createElement("button");
     like.textContent = image.liked ? 'Unlike' : 'Like';
@@ -134,31 +147,55 @@ document.querySelector("section#settings form").addEventListener("submit", async
     });
 
     const comments = document.createElement("div");
-    div.appendChild(comments);
     comments.classList.add("comments");
+    div.appendChild(comments);
+
+    function createCommentElement(comment) {
+      const commentDiv = document.createElement("div");
+      comments.appendChild(commentDiv);
+
+      const author = document.createElement("strong");
+      author.textContent = comment.user.username;
+      commentDiv.appendChild(author);
+
+      const date = document.createElement("em");
+      date.textContent = ` (${new Date(comment.created_at).toLocaleString()})`;
+      commentDiv.appendChild(date);
+
+      const body = document.createElement("span");
+      body.textContent = `: ${comment.body}`;
+      commentDiv.appendChild(body);
+    }
+
+    const commentAction = document.createElement("div");
+    commentAction.classList.add("action");
+    comments.appendChild(commentAction);
 
     const commentInput = document.createElement("input");
     commentInput.type = "text";
-    action.appendChild(commentInput);
+    commentAction.appendChild(commentInput);
 
     const commentButton = document.createElement("button");
     commentButton.textContent = "Post";
-    action.appendChild(commentButton);
+    commentAction.appendChild(commentButton);
     commentButton.addEventListener("click", async () => {
-      const { ok } = await apiCall(`/api/images/${image.id}/comment`, "POST", { body: commentInput.value });
-      if (!ok) return;
+      const { ok, data } = await apiCall(`/api/images/${image.id}/comment`, "POST", { body: commentInput.value });
+      if (!ok) {
+        alert(data.message);
+        return;
+      }
 
-      const p = document.createElement("p");
-      p.textContent = `You: ${commentInput.value}`;
-      comments.appendChild(p);
+      createCommentElement({
+        user: { username: document.getElementById("username").value },
+        body: commentInput.value,
+        created_at: data.created_at
+      });
+
       commentInput.value = "";
     });
 
-    for (const data of image.comments) {
-      const comment = document.createElement("p");
-      comment.textContent = `${data.user.username}: ${data.body}`;
-      comments.appendChild(comment);
-    }
+    for (const data of image.comments)
+      createCommentElement(data);
   }
 })();
 
@@ -230,7 +267,7 @@ document.getElementById("share").onclick = async () => {
   if (!ok) alert(data.message);
   else {
     alert("Image shared");
-    toggleCreateStep(false);
+    window.location.reload();
   }
 };
 </script>
