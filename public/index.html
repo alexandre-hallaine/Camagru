@@ -13,7 +13,13 @@
         </header>
 
         <main>
-            <section id="feed"></section>
+            <section id="feed">
+                <div></div>
+                <div class="nav">
+                    <button id="prev">Previous</button>
+                    <button id="next">Next</button>
+                </div>
+            </section>
             <section id="create" style="display: none">
                 <div class="card">
                     <video autoplay width="640" height="480"></video>
@@ -74,44 +80,18 @@
         </main>
 
         <script type="module">
-            import { apiCall } from "./shared.js";
-
             let logged = false;
+            let currentPage = 1;
 
-            (async () => {
-                const { ok: logged } = await apiCall(
-                    "/api/auth/validate",
-                    "GET",
-                );
-                const { data: settings } = await apiCall(
-                    "/api/settings",
-                    "GET",
-                );
-                const { data: images } = await apiCall("/api/images", "GET");
+            function renderFeed(images) {
+                const feed = document.querySelector("#feed div");
+                feed.innerHTML = "";
 
-                if (!logged) {
-                    document.querySelector("header button#logout").textContent =
-                        "Login";
-                    document
-                        .querySelector("header button[data-target='settings']")
-                        .remove();
-                    document
-                        .querySelector("header button[data-target='create']")
-                        .remove();
-                }
-
-                document.getElementById("notify-comments").checked =
-                    settings.notify_comments;
-                document.getElementById("email").value = settings.email;
-                document.getElementById("username").value = settings.username;
-
-                for (const image of images.sort(
-                    (a, b) => new Date(b.created_at) - new Date(a.created_at),
-                )) {
+                for (const image of images) {
                     const div = document.createElement("div");
                     div.classList.add("card");
                     div.classList.add("image");
-                    document.querySelector("#feed").appendChild(div);
+                    feed.appendChild(div);
 
                     const img = document.createElement("img");
                     img.src = image.content;
@@ -199,6 +179,66 @@
                     for (const data of image.comments)
                         createCommentElement(data);
                 }
+
+                document.getElementById("prev").disabled = currentPage === 1;
+                document.getElementById("next").disabled =
+                    currentPage * 5 >= totalImages;
+            }
+
+            async function fetchAndRenderFeed(page) {
+                const { data } = await apiCall(
+                    `/api/images?page=${page}`,
+                    "GET",
+                );
+                totalImages = data.total;
+                renderFeed(data.images);
+            }
+
+            (async () => {
+                const { ok: logged } = await apiCall(
+                    "/api/auth/validate",
+                    "GET",
+                );
+                const { data: settings } = await apiCall(
+                    "/api/settings",
+                    "GET",
+                );
+
+                if (!logged) {
+                    document.querySelector("header button#logout").textContent =
+                        "Login";
+                    document
+                        .querySelector("header button[data-target='settings']")
+                        .remove();
+                    document
+                        .querySelector("header button[data-target='create']")
+                        .remove();
+                }
+
+                document.getElementById("notify-comments").checked =
+                    settings.notify_comments;
+                document.getElementById("email").value = settings.email;
+                document.getElementById("username").value = settings.username;
+
+                await fetchAndRenderFeed(currentPage);
+
+                document
+                    .getElementById("prev")
+                    .addEventListener("click", () => {
+                        if (currentPage > 1) {
+                            currentPage--;
+                            fetchAndRenderFeed(currentPage);
+                        }
+                    });
+
+                document
+                    .getElementById("next")
+                    .addEventListener("click", () => {
+                        if (currentPage * 5 < totalImages) {
+                            currentPage++;
+                            fetchAndRenderFeed(currentPage);
+                        }
+                    });
             })();
 
             document.querySelectorAll("header button").forEach((btn) => {
