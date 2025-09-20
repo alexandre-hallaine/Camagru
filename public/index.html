@@ -1,275 +1,349 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <title>Camagru</title>
-  <link rel="stylesheet" href="../style.css">
-</head>
-<body>
-  <header>
-    <button data-target="feed">Feed</button>
-    <button data-target="create">Create</button>
-    <button data-target="settings">Settings</button>
-    <button id="logout">Logout</button>
-  </header>
+    <head>
+        <title>Camagru</title>
+        <link rel="stylesheet" href="../style.css" />
+    </head>
+    <body>
+        <header>
+            <button data-target="feed">Feed</button>
+            <button data-target="create">Create</button>
+            <button data-target="settings">Settings</button>
+            <button id="logout">Logout</button>
+        </header>
 
+        <main>
+            <section id="feed"></section>
+            <section id="create" style="display: none">
+                <div class="card">
+                    <video autoplay width="640" height="480"></video>
+                    <div class="action">
+                        <input type="file" id="upload" accept="image/*" />
+                        <button id="capture">Capture</button>
+                    </div>
+                </div>
 
-  <main>
-    <section id="feed"></section>
-    <section id="create" style="display:none">
-      <div class="card">
-        <video autoplay width="640" height="480"></video>
-        <div class="action">
-          <input type="file" id="upload" accept="image/*" />
-          <button id="capture">Capture</button>
-        </div>
-      </div>
+                <div style="display: none; flex-direction: row">
+                    <div class="card">
+                        <div style="position: relative">
+                            <canvas width="640" height="480"></canvas>
+                            <img
+                                id="overlay"
+                                width="640"
+                                height="480"
+                                style="position: absolute"
+                            />
+                        </div>
 
-      <div style="display:none; flex-direction: row;">
-        <div class="card">
-          <div style="position: relative;">
-            <canvas width="640" height="480"></canvas>
-            <img id="overlay" width="640" height="480" style="position: absolute;" />
-          </div>
+                        <div class="action">
+                            <button id="delete">Delete</button>
+                            <button id="share">Share</button>
+                        </div>
+                    </div>
+                    <div
+                        id="thumbnails"
+                        class="card"
+                        style="overflow-y: auto; max-height: 80vh"
+                    ></div>
+                </div>
+            </section>
+            <section id="settings" style="display: none" class="card">
+                <h2>Settings</h2>
+                <form>
+                    <div style="display: inline-block">
+                        <label for="notify-comments"
+                            >Notify me by email when someone comments on my
+                            pictures</label
+                        >
+                        <input type="checkbox" id="notify-comments" />
+                    </div>
+                    <input type="email" id="email" placeholder="New email" />
+                    <input
+                        type="text"
+                        id="username"
+                        placeholder="New username"
+                    />
+                    <input
+                        type="password"
+                        id="password"
+                        placeholder="New password"
+                    />
+                    <button type="submit">Update</button>
+                </form>
+            </section>
+        </main>
 
-          <div class="action">
-            <button id="delete">Delete</button>
-            <button id="share">Share</button>
-          </div>
-        </div>
-        <div id="thumbnails" class="card" style="overflow-y: auto; max-height: 80vh;"></div>
-    </section>
-    <section id="settings" style="display:none" class="card">
-      <h2>Settings</h2>
-      <form>
-        <div style="display: inline-block;">
-          <label for="notify-comments">Notify me by email when someone comments on my pictures</label>
-          <input type="checkbox" id="notify-comments" />
-        </div>
-        <input type="email" id="email" placeholder="New email" />
-        <input type="text" id="username" placeholder="New username" />
-        <input type="password" id="password" placeholder="New password" />
-        <button type="submit">Update</button>
-      </form>
-    </section>
-  </main>
+        <script type="module">
+            import { apiCall } from "./shared.js";
 
-  </div>
+            let logged = false;
 
-  <script type="module">
-import { apiCall } from './shared.js';
+            (async () => {
+                const { ok } = await apiCall("/api/auth/validate", "GET");
+                if (ok) {
+                    logged = true;
+                    return;
+                }
 
-let logged = false;
+                document.querySelector("header button#logout").textContent =
+                    "Login";
+                document
+                    .querySelector("header button[data-target='settings']")
+                    .remove();
+                document
+                    .querySelector("header button[data-target='create']")
+                    .remove();
+            })();
 
-(async () => {
-  const { ok } = await apiCall("/api/auth/validate", "GET");
-  if (ok) {
-    logged = true;
-    return;
-  }
+            document.querySelectorAll("header button").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const targetId = btn.dataset.target;
+                    if (!targetId) return;
+                    document.querySelectorAll("main section").forEach((sec) => {
+                        sec.style.display =
+                            sec.id === targetId ? "block" : "none";
+                    });
+                });
+            });
 
-  document.querySelector("header button#logout").textContent = "Login";
-  document.querySelector("header button[data-target='settings']").remove();
-  document.querySelector("header button[data-target='create']").remove();
-})();
+            document
+                .getElementById("logout")
+                .addEventListener("click", async () => {
+                    const { ok } = await apiCall("/api/auth/logout", "POST");
+                    if (ok) window.location.href = "/auth/";
+                });
 
-document.querySelectorAll("header button").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const targetId = btn.dataset.target;
-    if (!targetId) return;
-    document.querySelectorAll("main section").forEach(sec => {
-      sec.style.display = sec.id === targetId ? "block" : "none";
-    });
-  });
-});
+            (async () => {
+                let { ok, data } = await apiCall("/api/settings", "GET");
+                if (!ok) return;
 
-document.getElementById("logout").addEventListener("click", async () => {
-  const { ok } = await apiCall("/api/auth/logout", "POST");
-  if (ok) window.location.href = "/auth/";
-});
+                document.getElementById("notify-comments").checked =
+                    data.notify_comments;
+                document.getElementById("email").value = data.email;
+                document.getElementById("username").value = data.username;
+            })();
 
-(async () => {
-  let { ok, data } = await apiCall("/api/settings", "GET");
-  if (!ok) return;
+            document
+                .querySelector("section#settings form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
 
-  document.getElementById("notify-comments").checked = data.notify_comments;
-  document.getElementById("email").value = data.email;
-  document.getElementById("username").value = data.username;
-})();
+                    const { ok, data } = await apiCall(
+                        "/api/settings",
+                        "POST",
+                        {
+                            notify_comments:
+                                document.getElementById("notify-comments")
+                                    .checked,
+                            email: document.getElementById("email").value,
+                            username: document.getElementById("username").value,
+                            password: document.getElementById("password").value,
+                        },
+                    );
 
-document.querySelector("section#settings form").addEventListener("submit", async (e) => {
-  e.preventDefault();
+                    if (!ok) alert(data.message);
+                    else {
+                        alert("Settings updated");
+                        window.location.reload();
+                    }
+                });
 
-  const { ok, data } = await apiCall("/api/settings", "POST", {
-    notify_comments: document.getElementById("notify-comments").checked,
-    email: document.getElementById("email").value,
-    username: document.getElementById("username").value,
-    password: document.getElementById("password").value,
-  });
+            (async () => {
+                const { ok, data } = await apiCall("/api/images", "GET");
 
-  if (!ok) alert(data.message);
-  else {
-    alert("Settings updated");
-    window.location.reload();
-  }
-});
+                for (const image of data.images.sort(
+                    (a, b) => new Date(b.created_at) - new Date(a.created_at),
+                )) {
+                    const div = document.createElement("div");
+                    div.classList.add("card");
+                    div.classList.add("image");
+                    document.querySelector("#feed").appendChild(div);
 
-(async () => {
-  const { ok, data } = await apiCall("/api/images", "GET");
+                    const img = document.createElement("img");
+                    img.src = image.content;
+                    div.appendChild(img);
 
-  for (const image of data.images.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))) {
-    const div = document.createElement("div");
-    div.classList.add("card");
-    div.classList.add("image");
-    document.querySelector("#feed").appendChild(div);
+                    const action = document.createElement("div");
+                    action.classList.add("action");
+                    div.appendChild(action);
 
-    const img = document.createElement("img");
-    img.src = image.content;
-    div.appendChild(img);
+                    const username = document.createElement("h3");
+                    username.textContent = image.user.username;
+                    action.appendChild(username);
 
-    const action = document.createElement("div");
-    action.classList.add("action");
-    div.appendChild(action);
+                    const date = document.createElement("em");
+                    date.textContent = `Posted on ${new Date(image.created_at).toLocaleString()}`;
+                    action.appendChild(date);
 
-    const username = document.createElement("h3");
-    username.textContent = image.user.username;
-    action.appendChild(username);
+                    const like = document.createElement("button");
+                    like.textContent = image.liked ? "Unlike" : "Like";
+                    action.appendChild(like);
+                    like.addEventListener("click", async () => {
+                        const { ok, data } = await apiCall(
+                            `/api/images/${image.id}/like`,
+                            "POST",
+                        );
+                        if (ok)
+                            like.textContent = data.liked ? "Unlike" : "Like";
+                    });
 
-    const date = document.createElement("em");
-    date.textContent = `Posted on ${new Date(image.created_at).toLocaleString()}`;
-    action.appendChild(date);
+                    const comments = document.createElement("div");
+                    comments.classList.add("comments");
+                    div.appendChild(comments);
 
-    const like = document.createElement("button");
-    like.textContent = image.liked ? 'Unlike' : 'Like';
-    action.appendChild(like);
-    like.addEventListener("click", async () => {
-      const { ok, data } = await apiCall(`/api/images/${image.id}/like`, "POST");
-      if (ok) like.textContent = data.liked ? 'Unlike' : 'Like';
-    });
+                    function createCommentElement(comment) {
+                        const commentDiv = document.createElement("div");
+                        comments.appendChild(commentDiv);
 
-    const comments = document.createElement("div");
-    comments.classList.add("comments");
-    div.appendChild(comments);
+                        const author = document.createElement("strong");
+                        author.textContent = comment.user.username;
+                        commentDiv.appendChild(author);
 
-    function createCommentElement(comment) {
-      const commentDiv = document.createElement("div");
-      comments.appendChild(commentDiv);
+                        const date = document.createElement("em");
+                        date.textContent = ` (${new Date(comment.created_at).toLocaleString()})`;
+                        commentDiv.appendChild(date);
 
-      const author = document.createElement("strong");
-      author.textContent = comment.user.username;
-      commentDiv.appendChild(author);
+                        const body = document.createElement("span");
+                        body.textContent = `: ${comment.body}`;
+                        commentDiv.appendChild(body);
+                    }
 
-      const date = document.createElement("em");
-      date.textContent = ` (${new Date(comment.created_at).toLocaleString()})`;
-      commentDiv.appendChild(date);
+                    const commentAction = document.createElement("div");
+                    commentAction.classList.add("action");
+                    comments.appendChild(commentAction);
 
-      const body = document.createElement("span");
-      body.textContent = `: ${comment.body}`;
-      commentDiv.appendChild(body);
-    }
+                    const commentInput = document.createElement("input");
+                    commentInput.type = "text";
+                    commentAction.appendChild(commentInput);
 
-    const commentAction = document.createElement("div");
-    commentAction.classList.add("action");
-    comments.appendChild(commentAction);
+                    const commentButton = document.createElement("button");
+                    commentButton.textContent = "Post";
+                    commentAction.appendChild(commentButton);
+                    commentButton.addEventListener("click", async () => {
+                        const { ok, data } = await apiCall(
+                            `/api/images/${image.id}/comment`,
+                            "POST",
+                            { body: commentInput.value },
+                        );
+                        if (!ok) {
+                            alert(data.message);
+                            return;
+                        }
 
-    const commentInput = document.createElement("input");
-    commentInput.type = "text";
-    commentAction.appendChild(commentInput);
+                        createCommentElement({
+                            user: {
+                                username:
+                                    document.getElementById("username").value,
+                            },
+                            body: commentInput.value,
+                            created_at: data.created_at,
+                        });
 
-    const commentButton = document.createElement("button");
-    commentButton.textContent = "Post";
-    commentAction.appendChild(commentButton);
-    commentButton.addEventListener("click", async () => {
-      const { ok, data } = await apiCall(`/api/images/${image.id}/comment`, "POST", { body: commentInput.value });
-      if (!ok) {
-        alert(data.message);
-        return;
-      }
+                        commentInput.value = "";
+                    });
 
-      createCommentElement({
-        user: { username: document.getElementById("username").value },
-        body: commentInput.value,
-        created_at: data.created_at
-      });
+                    for (const data of image.comments)
+                        createCommentElement(data);
+                }
+            })();
 
-      commentInput.value = "";
-    });
+            navigator.mediaDevices
+                .getUserMedia({ video: true })
+                .then(
+                    (stream) =>
+                        (document.querySelector("video").srcObject = stream),
+                )
+                .catch((err) => console.error("Camera error:", err));
 
-    for (const data of image.comments)
-      createCommentElement(data);
-  }
-})();
+            function toggleCreateStep(second) {
+                document.querySelector(
+                    "section#create > div:first-child",
+                ).style.display = second ? "none" : "block";
+                document.querySelector(
+                    "section#create > div:last-child",
+                ).style.display = second ? "flex" : "none";
+            }
 
-navigator.mediaDevices.getUserMedia({ video: true })
-  .then(stream => document.querySelector("video").srcObject = stream)
-  .catch(err => console.error("Camera error:", err));
+            document.getElementById("upload").onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
 
-function toggleCreateStep(second) {
-  document.querySelector("section#create > div:first-child").style.display = second ? "none" : "block";
-  document.querySelector("section#create > div:last-child").style.display = second ? "flex" : "none";
-}
+                const canvas = document.querySelector("canvas");
+                canvas
+                    .getContext("2d")
+                    .clearRect(0, 0, canvas.width, canvas.height);
 
-document.getElementById("upload").onchange = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
+                const img = new Image();
+                img.onload = () =>
+                    canvas
+                        .getContext("2d")
+                        .drawImage(img, 0, 0, canvas.width, canvas.height);
+                img.src = URL.createObjectURL(file);
 
-  const canvas = document.querySelector("canvas");
-  canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+                toggleCreateStep(true);
+            };
 
-  const img = new Image();
-  img.onload = () => canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-  img.src = URL.createObjectURL(file);
+            document.getElementById("capture").onclick = () => {
+                const canvas = document.querySelector("canvas");
+                canvas
+                    .getContext("2d")
+                    .drawImage(
+                        document.querySelector("video"),
+                        0,
+                        0,
+                        canvas.width,
+                        canvas.height,
+                    );
 
-  toggleCreateStep(true);
-};
+                toggleCreateStep(true);
+            };
 
-document.getElementById("capture").onclick = () => {
-  const canvas = document.querySelector("canvas");
-  canvas.getContext("2d").drawImage(document.querySelector("video"), 0, 0, canvas.width, canvas.height);
+            ["cadre.png", "costumeHomme.png", "birthday.png"].forEach((src) => {
+                const img = document.createElement("img");
+                img.src = `./overlay/${src}`;
+                img.onclick = () => (overlay.src = img.src);
+                document.getElementById("thumbnails").appendChild(img);
+            });
 
-  toggleCreateStep(true);
-};
+            document.getElementById("delete").onclick = () => {
+                toggleCreateStep(false);
+            };
 
-[
-  "cadre.png",
-  "costumeHomme.png",
-  "birthday.png"
-].forEach(src => {
-  const img = document.createElement("img");
-  img.src = `./overlay/${src}`;
-  img.onclick = () => overlay.src = img.src;
-  document.getElementById("thumbnails").appendChild(img);
-});
+            document.getElementById("share").onclick = async () => {
+                if (!document.getElementById("overlay").src) {
+                    alert("You must select an overlay to share an image");
+                    return;
+                }
 
-document.getElementById("delete").onclick = () => {
-  toggleCreateStep(false);
-};
+                const canvas = new OffscreenCanvas(640, 480);
+                const ctx = canvas.getContext("2d");
 
-document.getElementById("share").onclick = async () => {
-  if (!document.getElementById("overlay").src) {
-    alert("You must select an overlay to share an image");
-    return;
-  }
+                ctx.drawImage(document.querySelector("canvas"), 0, 0);
+                ctx.drawImage(
+                    document.getElementById("overlay"),
+                    0,
+                    0,
+                    640,
+                    480,
+                );
 
-  const canvas = new OffscreenCanvas(640, 480);
-  const ctx = canvas.getContext("2d");
+                const blob = await canvas.convertToBlob({
+                    type: "image/jpeg",
+                    quality: 0.7,
+                });
+                const buffer = await blob.arrayBuffer();
+                const base64 = `data:${blob.type};base64,${btoa(String.fromCharCode(...new Uint8Array(buffer)))}`;
 
-  ctx.drawImage(document.querySelector("canvas"), 0, 0);
-  ctx.drawImage(document.getElementById("overlay"), 0, 0, 640, 480);
+                const { ok, data } = await apiCall("/api/images", "POST", {
+                    image: base64,
+                });
 
-  const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.7 });
-  const buffer = await blob.arrayBuffer();
-  const base64 = `data:${blob.type};base64,${btoa(String.fromCharCode(...new Uint8Array(buffer)))}`;
-
-  const {ok, data} = await apiCall("/api/images", "POST", {
-    image: base64
-  });
-
-  if (!ok) alert(data.message);
-  else {
-    alert("Image shared");
-    window.location.reload();
-  }
-};
-</script>
-</body>
+                if (!ok) alert(data.message);
+                else {
+                    alert("Image shared");
+                    window.location.reload();
+                }
+            };
+        </script>
+    </body>
 </html>

@@ -4,7 +4,8 @@ body {
     align-items: center;
 }
 
-button, input {
+button,
+input {
     padding: 10px 20px;
 }
 
