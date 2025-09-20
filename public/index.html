@@ -79,79 +79,33 @@
             let logged = false;
 
             (async () => {
-                const { ok } = await apiCall("/api/auth/validate", "GET");
-                if (ok) {
-                    logged = true;
-                    return;
+                const { ok: logged } = await apiCall(
+                    "/api/auth/validate",
+                    "GET",
+                );
+                const { data: settings } = await apiCall(
+                    "/api/settings",
+                    "GET",
+                );
+                const { data: images } = await apiCall("/api/images", "GET");
+
+                if (!logged) {
+                    document.querySelector("header button#logout").textContent =
+                        "Login";
+                    document
+                        .querySelector("header button[data-target='settings']")
+                        .remove();
+                    document
+                        .querySelector("header button[data-target='create']")
+                        .remove();
                 }
 
-                document.querySelector("header button#logout").textContent =
-                    "Login";
-                document
-                    .querySelector("header button[data-target='settings']")
-                    .remove();
-                document
-                    .querySelector("header button[data-target='create']")
-                    .remove();
-            })();
-
-            document.querySelectorAll("header button").forEach((btn) => {
-                btn.addEventListener("click", () => {
-                    const targetId = btn.dataset.target;
-                    if (!targetId) return;
-                    document.querySelectorAll("main section").forEach((sec) => {
-                        sec.style.display =
-                            sec.id === targetId ? "block" : "none";
-                    });
-                });
-            });
-
-            document
-                .getElementById("logout")
-                .addEventListener("click", async () => {
-                    const { ok } = await apiCall("/api/auth/logout", "POST");
-                    if (ok) window.location.href = "/auth/";
-                });
-
-            (async () => {
-                let { ok, data } = await apiCall("/api/settings", "GET");
-                if (!ok) return;
-
                 document.getElementById("notify-comments").checked =
-                    data.notify_comments;
-                document.getElementById("email").value = data.email;
-                document.getElementById("username").value = data.username;
-            })();
+                    settings.notify_comments;
+                document.getElementById("email").value = settings.email;
+                document.getElementById("username").value = settings.username;
 
-            document
-                .querySelector("section#settings form")
-                .addEventListener("submit", async (e) => {
-                    e.preventDefault();
-
-                    const { ok, data } = await apiCall(
-                        "/api/settings",
-                        "POST",
-                        {
-                            notify_comments:
-                                document.getElementById("notify-comments")
-                                    .checked,
-                            email: document.getElementById("email").value,
-                            username: document.getElementById("username").value,
-                            password: document.getElementById("password").value,
-                        },
-                    );
-
-                    if (!ok) alert(data.message);
-                    else {
-                        alert("Settings updated");
-                        window.location.reload();
-                    }
-                });
-
-            (async () => {
-                const { ok, data } = await apiCall("/api/images", "GET");
-
-                for (const image of data.images.sort(
+                for (const image of images.sort(
                     (a, b) => new Date(b.created_at) - new Date(a.created_at),
                 )) {
                     const div = document.createElement("div");
@@ -177,7 +131,7 @@
 
                     const like = document.createElement("button");
                     like.textContent = image.liked ? "Unlike" : "Like";
-                    action.appendChild(like);
+                    if (logged) action.appendChild(like);
                     like.addEventListener("click", async () => {
                         const { ok, data } = await apiCall(
                             `/api/images/${image.id}/like`,
@@ -210,7 +164,7 @@
 
                     const commentAction = document.createElement("div");
                     commentAction.classList.add("action");
-                    comments.appendChild(commentAction);
+                    if (logged) comments.appendChild(commentAction);
 
                     const commentInput = document.createElement("input");
                     commentInput.type = "text";
@@ -246,6 +200,49 @@
                         createCommentElement(data);
                 }
             })();
+
+            document.querySelectorAll("header button").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const targetId = btn.dataset.target;
+                    if (!targetId) return;
+                    document.querySelectorAll("main section").forEach((sec) => {
+                        sec.style.display =
+                            sec.id === targetId ? "block" : "none";
+                    });
+                });
+            });
+
+            document
+                .getElementById("logout")
+                .addEventListener("click", async () => {
+                    const { ok } = await apiCall("/api/auth/logout", "POST");
+                    if (ok) window.location.href = "/auth/";
+                });
+
+            document
+                .querySelector("section#settings form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+
+                    const { ok, data } = await apiCall(
+                        "/api/settings",
+                        "POST",
+                        {
+                            notify_comments:
+                                document.getElementById("notify-comments")
+                                    .checked,
+                            email: document.getElementById("email").value,
+                            username: document.getElementById("username").value,
+                            password: document.getElementById("password").value,
+                        },
+                    );
+
+                    if (!ok) alert(data.message);
+                    else {
+                        alert("Settings updated");
+                        window.location.reload();
+                    }
+                });
 
             navigator.mediaDevices
                 .getUserMedia({ video: true })

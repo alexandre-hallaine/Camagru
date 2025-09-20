@@ -436,7 +436,7 @@ $router->get("/images", function () use ($pdo) {
             }
         }
 
-        sendResponse(200, ["images" => $images]);
+        sendResponse(200, $images);
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
