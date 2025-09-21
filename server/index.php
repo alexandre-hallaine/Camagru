@@ -392,10 +392,14 @@ $router->post("/images", function () use ($pdo) {
 });
 
 $router->get("/images", function () use ($pdo) {
+    $page = isset($_GET["page"]) ? (int) $_GET["page"] : 1;
+
     try {
         $stmt = $pdo->prepare(
-            "SELECT id, user_id, content, created_at FROM images",
+            "SELECT id, user_id, content, created_at FROM images ORDER BY created_at DESC LIMIT :limit OFFSET :offset",
         );
+        $stmt->bindValue(':limit', 5, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', max(0, ($page - 1) * 5), PDO::PARAM_INT);
         $stmt->execute();
         $images = $stmt->fetchAll();
 

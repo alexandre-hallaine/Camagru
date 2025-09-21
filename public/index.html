@@ -13,7 +13,13 @@
         </header>
 
         <main>
-            <section id="feed"></section>
+            <section id="feed">
+                <div></div>
+                <div class="nav">
+                    <button id="prev">Previous</button>
+                    <button id="next">Next</button>
+                </div>
+            </section>
             <section id="create" style="display: none">
                 <div class="card">
                     <video autoplay width="640" height="480"></video>
@@ -77,41 +83,25 @@
             import { apiCall } from "./shared.js";
 
             let logged = false;
+            let page = 1;
 
-            (async () => {
-                const { ok: logged } = await apiCall(
-                    "/api/auth/validate",
+            async function renderFeed() {
+                const { data: images } = await apiCall(
+                    `/api/images?page=${page}`,
                     "GET",
                 );
-                const { data: settings } = await apiCall(
-                    "/api/settings",
-                    "GET",
-                );
-                const { data: images } = await apiCall("/api/images", "GET");
 
-                if (!logged) {
-                    document.querySelector("header button#logout").textContent =
-                        "Login";
-                    document
-                        .querySelector("header button[data-target='settings']")
-                        .remove();
-                    document
-                        .querySelector("header button[data-target='create']")
-                        .remove();
-                }
+                document.getElementById("prev").disabled = page === 1;
+                document.getElementById("next").disabled = images.length < 5;
 
-                document.getElementById("notify-comments").checked =
-                    settings.notify_comments;
-                document.getElementById("email").value = settings.email;
-                document.getElementById("username").value = settings.username;
+                const feed = document.querySelector("#feed > div:first-child");
+                feed.innerHTML = "";
 
-                for (const image of images.sort(
-                    (a, b) => new Date(b.created_at) - new Date(a.created_at),
-                )) {
+                for (const image of images) {
                     const div = document.createElement("div");
                     div.classList.add("card");
                     div.classList.add("image");
-                    document.querySelector("#feed").appendChild(div);
+                    feed.appendChild(div);
 
                     const img = document.createElement("img");
                     img.src = image.content;
@@ -199,6 +189,45 @@
                     for (const data of image.comments)
                         createCommentElement(data);
                 }
+            }
+
+            (async () => {
+                ({ ok: logged } = await apiCall(
+                    "/api/auth/validate",
+                    "GET",
+                ));
+
+                if (!logged) {
+                    document.querySelector("header button#logout").textContent =
+                        "Login";
+                    document
+                        .querySelector("header button[data-target='settings']")
+                        .remove();
+                    document
+                        .querySelector("header button[data-target='create']")
+                        .remove();
+                }
+
+                const { data: settings } = await apiCall(
+                    "/api/settings",
+                    "GET",
+                );
+
+                document.getElementById("notify-comments").checked = settings.notify_comments;
+                document.getElementById("email").value = settings.email;
+                document.getElementById("username").value = settings.username;
+
+                document.getElementById("prev").addEventListener("click", () => {
+                    page--;
+                    renderFeed();
+                });
+
+                document.getElementById("next").addEventListener("click", () => {
+                    page++;
+                    renderFeed();
+                });
+
+                await renderFeed();
             })();
 
             document.querySelectorAll("header button").forEach((btn) => {
@@ -244,13 +273,9 @@
                     }
                 });
 
-            navigator.mediaDevices
-                .getUserMedia({ video: true })
-                .then(
-                    (stream) =>
-                        (document.querySelector("video").srcObject = stream),
-                )
-                .catch((err) => console.error("Camera error:", err));
+            navigator.mediaDevices?.getUserMedia({ video: true })
+              .then(s => document.querySelector("video").srcObject = s)
+              .catch(e => console.error("Camera error:", e));
 
             function toggleCreateStep(second) {
                 document.querySelector(

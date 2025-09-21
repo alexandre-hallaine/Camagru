@@ -9,7 +9,8 @@ input {
     padding: 10px 20px;
 }
 
-header {
+header,
+.nav {
     display: flex;
     gap: 20px;
 }
