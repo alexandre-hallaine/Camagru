@@ -80,7 +80,7 @@
         </main>
 
         <script type="module">
-            import { apiCall } from "./shared.js";
+            import { apiCall, setCsrfToken } from "./shared.js";
 
             let id = null;
             let page = 1;
@@ -228,6 +228,8 @@
                     document
                         .querySelector("header button[data-target='create']")
                         .remove();
+                } else {
+                    setCsrfToken(settings.csrf_token);
                 }
 
                 document.getElementById("notify-comments").checked =

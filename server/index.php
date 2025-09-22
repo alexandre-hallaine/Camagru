@@ -88,6 +88,19 @@ function requireLogin(): void
     if (!$user) {
         sendResponse(401, ["message" => "Unauthorized"]);
     }
+
+    if (!isset($_SESSION["csrf_token"])) {
+        $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
+    }
+
+    if ($_SERVER["REQUEST_METHOD"] === "POST") {
+        if (
+            !isset($_SERVER["HTTP_X_CSRF_TOKEN"]) ||
+            !hash_equals($_SESSION["csrf_token"], $_SERVER["HTTP_X_CSRF_TOKEN"])
+        ) {
+            sendResponse(403, ["message" => "Invalid CSRF token"]);
+        }
+    }
 }
 
 function action($userId, $kind, $payload = null): void
@@ -167,6 +180,7 @@ $router->post("/auth/login", function () use ($pdo) {
     }
 
     $_SESSION["id"] = $user["id"];
+    $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
     sendResponse(200, []);
 });
 
@@ -304,6 +318,7 @@ $router->get("/settings", function () use ($pdo) {
         "notify_comments" => (bool) $settings["notify_comments"],
         "email" => $settings["email"],
         "username" => $user["username"],
+        "csrf_token" => $_SESSION["csrf_token"],
     ]);
 });
 
