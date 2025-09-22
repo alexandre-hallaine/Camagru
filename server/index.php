@@ -282,11 +282,6 @@ $router->post("/auth/logout", function () {
     sendResponse(200, []);
 });
 
-$router->get("/auth/validate", function () use ($pdo) {
-    requireLogin();
-    sendResponse(200, []);
-});
-
 $router->get("/settings", function () use ($pdo) {
     requireLogin();
 
@@ -305,6 +300,7 @@ $router->get("/settings", function () use ($pdo) {
     }
 
     sendResponse(200, [
+        "id" => $_SESSION["id"],
         "notify_comments" => (bool) $settings["notify_comments"],
         "email" => $settings["email"],
         "username" => $user["username"],
@@ -391,6 +387,21 @@ $router->post("/images", function () use ($pdo) {
     sendResponse(200, []);
 });
 
+$router->delete("/images/(\d+)", function ($id) use ($pdo) {
+    requireLogin();
+
+    try {
+        $stmt = $pdo->prepare(
+            "DELETE FROM images WHERE id = ? AND user_id = ?",
+        );
+        $stmt->execute([$id, $_SESSION["id"]]);
+    } catch (PDOException $e) {
+        sendResponse(500, ["message" => $e->getMessage()]);
+    }
+
+    sendResponse(200, []);
+});
+
 $router->get("/images", function () use ($pdo) {
     $page = isset($_GET["page"]) ? (int) $_GET["page"] : 1;
 
@@ -398,8 +409,8 @@ $router->get("/images", function () use ($pdo) {
         $stmt = $pdo->prepare(
             "SELECT id, user_id, content, created_at FROM images ORDER BY created_at DESC LIMIT :limit OFFSET :offset",
         );
-        $stmt->bindValue(':limit', 5, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', max(0, ($page - 1) * 5), PDO::PARAM_INT);
+        $stmt->bindValue(":limit", 5, PDO::PARAM_INT);
+        $stmt->bindValue(":offset", max(0, ($page - 1) * 5), PDO::PARAM_INT);
         $stmt->execute();
         $images = $stmt->fetchAll();
 
