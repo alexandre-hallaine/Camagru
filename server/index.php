@@ -373,13 +373,50 @@ $router->post("/settings", function () use ($pdo) {
 
 $router->post("/images", function () use ($pdo) {
     requireLogin();
-    $input = validateInput(["image"]);
+    $input = validateInput(["image", "overlay"]);
+
+    ($img = imagecreatefromstring(
+        base64_decode(
+            preg_replace("/^data:image\/\w+;base64,/", "", $input["image"]),
+        ),
+    )) or sendResponse(400, ["message" => "Invalid image data"]);
+
+    ($overlay = imagecreatefrompng(
+        __DIR__ . "/overlays/" . $input["overlay"],
+    )) or sendResponse(400, ["message" => "Invalid overlay image"]);
+
+    $width = imagesx($img);
+    $height = imagesy($img);
+
+    $resized_overlay = imagecreatetruecolor($width, $height);
+    imagecopyresized(
+        $resized_overlay,
+        $overlay,
+        0,
+        0,
+        0,
+        0,
+        $width,
+        $height,
+        imagesx($overlay),
+        imagesy($overlay),
+    );
+    imagecopy($img, $resized_overlay, 0, 0, 0, 0, $width, $height);
+
+    ob_start();
+    imagepng($img);
+    $content = ob_get_clean();
+    $content = "data:image/png;base64," . base64_encode($content);
+
+    imagedestroy($img);
+    imagedestroy($overlay);
+    imagedestroy($resized_overlay);
 
     try {
         $stmt = $pdo->prepare(
             "INSERT INTO images (user_id, content) VALUES (?, ?)",
         );
-        $stmt->execute([$_SESSION["id"], $input["image"]]);
+        $stmt->execute([$_SESSION["id"], $content]);
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
@@ -520,6 +557,22 @@ $router->post("/images/(\d+)/comment", function ($id) use ($pdo) {
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
+});
+
+$router->get("/overlays", function () {
+    $files = scandir(__DIR__ . "/overlays");
+    $images = [];
+    foreach ($files as $file) {
+        if (in_array($file, [".", ".."])) {
+            continue;
+        }
+        $path = __DIR__ . "/overlays/" . $file;
+        $type = pathinfo($path, PATHINFO_EXTENSION);
+        $data = file_get_contents($path);
+        $base64 = "data:image/" . $type . ";base64," . base64_encode($data);
+        $images[] = ["slug" => $file, "content" => $base64];
+    }
+    sendResponse(200, $images);
 });
 
 $router->run();

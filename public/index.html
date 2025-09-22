@@ -343,12 +343,20 @@
                 toggleCreateStep(true);
             };
 
-            ["cadre.png", "costumeHomme.png", "birthday.png"].forEach((src) => {
-                const img = document.createElement("img");
-                img.src = `./overlay/${src}`;
-                img.onclick = () => (overlay.src = img.src);
-                document.getElementById("thumbnails").appendChild(img);
-            });
+            let selectedOverlay = null;
+            (async () => {
+                const { data } = await apiCall("/api/overlays", "GET");
+                for (const overlayData of data) {
+                    const img = document.createElement("img");
+                    img.src = overlayData.content;
+                    img.dataset.slug = overlayData.slug;
+                    img.onclick = () => {
+                        overlay.src = img.src;
+                        selectedOverlay = overlayData.slug;
+                    };
+                    document.getElementById("thumbnails").appendChild(img);
+                }
+            })();
 
             document.getElementById("delete").onclick = () => {
                 toggleCreateStep(false);
@@ -360,27 +368,19 @@
                     return;
                 }
 
-                const canvas = new OffscreenCanvas(640, 480);
-                const ctx = canvas.getContext("2d");
-
+                const offscreenCanvas = new OffscreenCanvas(640, 480);
+                const ctx = offscreenCanvas.getContext("2d");
                 ctx.drawImage(document.querySelector("canvas"), 0, 0);
-                ctx.drawImage(
-                    document.getElementById("overlay"),
-                    0,
-                    0,
-                    640,
-                    480,
-                );
 
-                const blob = await canvas.convertToBlob({
-                    type: "image/jpeg",
-                    quality: 0.7,
+                const blob = await offscreenCanvas.convertToBlob({
+                    type: "image/png",
                 });
                 const buffer = await blob.arrayBuffer();
                 const base64 = `data:${blob.type};base64,${btoa(String.fromCharCode(...new Uint8Array(buffer)))}`;
 
                 const { ok, data } = await apiCall("/api/images", "POST", {
                     image: base64,
+                    overlay: selectedOverlay,
                 });
 
                 if (!ok) alert(data.message);
