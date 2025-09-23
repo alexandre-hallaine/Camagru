@@ -174,10 +174,46 @@ function action($userId, $kind, $payload = null): void
     ]);
 }
 
-$router = new \Bramus\Router\Router();
-$router->setBasePath("/api");
+$request_uri = strtok($_SERVER["REQUEST_URI"], "?");
+$request_method = $_SERVER["REQUEST_METHOD"];
 
-$router->post("/auth/login", function () use ($pdo) {
+if (preg_match("/^\/api\/(.*)$/", $request_uri, $matches)) {
+    $request_uri = "/" . $matches[1];
+}
+
+$routes = [
+    "/auth/login" => "handle_auth_login",
+    "/auth/register" => "handle_auth_register",
+    "/auth/reset" => "handle_auth_reset",
+    "/auth/token" => "handle_auth_token",
+    "/auth/logout" => "handle_auth_logout",
+    "/settings" => "handle_settings",
+    "/images" => "handle_images",
+    "/images/(\\d+)" => "handle_image_delete",
+    "/images/(\\d+)/like" => "handle_image_like",
+    "/images/(\\d+)/comment" => "handle_image_comment",
+    "/overlays" => "handle_overlays",
+];
+
+foreach ($routes as $route => $handler) {
+    $pattern = "#^$route$#";
+    if (preg_match($pattern, $request_uri, $matches)) {
+        $params = array_slice($matches, 1);
+        $handler($pdo, $request_method, ...$params);
+        exit;
+    }
+}
+
+http_response_code(404);
+echo json_encode(["message" => "Not Found"]);
+exit;
+
+function handle_auth_login($pdo, $request_method)
+{
+    if ($request_method !== "POST") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
+    }
+
     $input = validateInput(["username", "password"]);
 
     try {
@@ -204,9 +240,14 @@ $router->post("/auth/login", function () use ($pdo) {
     $_SESSION["id"] = $user["id"];
     $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
     sendResponse(200, []);
-});
+}
 
-$router->post("/auth/register", function () use ($pdo) {
+function handle_auth_register($pdo, $request_method)
+{
+    if ($request_method !== "POST") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
+    }
+
     $input = validateInput(["email", "username", "password"]);
 
     if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL)) {
@@ -238,9 +279,14 @@ $router->post("/auth/register", function () use ($pdo) {
     }
 
     action($user["id"], "VERIFY_ACCOUNT");
-});
+}
 
-$router->post("/auth/reset", function () use ($pdo) {
+function handle_auth_reset($pdo, $request_method)
+{
+    if ($request_method !== "POST") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
+    }
+
     $input = validateInput(["username", "password"]);
 
     if (strlen($input["password"]) < 6) {
@@ -262,9 +308,14 @@ $router->post("/auth/reset", function () use ($pdo) {
     action($user["id"], "RESET_PASSWORD", [
         "password" => password_hash($input["password"], PASSWORD_DEFAULT),
     ]);
-});
+}
 
-$router->post("/auth/token", function () use ($pdo) {
+function handle_auth_token($pdo, $request_method)
+{
+    if ($request_method !== "POST") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
+    }
+
     $input = validateInput(["token"]);
 
     try {
@@ -311,157 +362,228 @@ $router->post("/auth/token", function () use ($pdo) {
 
     $_SESSION["id"] = $action["user_id"];
     sendResponse(200, []);
-});
+}
 
-$router->post("/auth/logout", function () {
+function handle_auth_logout($pdo, $request_method)
+{
+    if ($request_method !== "POST") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
+    }
+
     session_destroy();
     sendResponse(200, []);
-});
+}
 
-$router->get("/settings", function () use ($pdo) {
-    requireLogin();
+function handle_settings($pdo, $request_method)
+{
+    if ($request_method === "GET") {
+        requireLogin();
 
-    try {
-        $stmt = $pdo->prepare(
-            "SELECT email, notify_comments FROM settings WHERE user_id = ?",
-        );
-        $stmt->execute([$_SESSION["id"]]);
-        $settings = $stmt->fetch();
-
-        $stmt = $pdo->prepare("SELECT username FROM users WHERE id = ?");
-        $stmt->execute([$_SESSION["id"]]);
-        $user = $stmt->fetch();
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
-    }
-
-    sendResponse(200, [
-        "id" => $_SESSION["id"],
-        "notify_comments" => (bool) $settings["notify_comments"],
-        "email" => $settings["email"],
-        "username" => $user["username"],
-        "csrf_token" => $_SESSION["csrf_token"],
-    ]);
-});
-
-$router->post("/settings", function () use ($pdo) {
-    requireLogin();
-    $input = validateInput([
-        "notify_comments",
-        "email",
-        "username",
-        "password",
-    ]);
-
-    if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL)) {
-        sendResponse(400, ["message" => "Invalid email"]);
-    }
-
-    try {
-        $smtp = $pdo->prepare(
-            "SELECT email, notify_comments FROM settings WHERE user_id = ?",
-        );
-        $smtp->execute([$_SESSION["id"]]);
-        $settings = $smtp->fetch();
-
-        if ($settings["notify_comments"] !== (int) $input["notify_comments"]) {
+        try {
             $stmt = $pdo->prepare(
-                "UPDATE settings SET notify_comments = ? WHERE user_id = ?",
+                "SELECT email, notify_comments FROM settings WHERE user_id = ?",
             );
-            $stmt->execute([(int) $input["notify_comments"], $_SESSION["id"]]);
+            $stmt->execute([$_SESSION["id"]]);
+            $settings = $stmt->fetch();
+
+            $stmt = $pdo->prepare("SELECT username FROM users WHERE id = ?");
+            $stmt->execute([$_SESSION["id"]]);
+            $user = $stmt->fetch();
+        } catch (PDOException $e) {
+            sendResponse(500, ["message" => $e->getMessage()]);
         }
 
-        if ($settings["email"] !== $input["email"]) {
-            action($_SESSION["id"], "CHANGE_EMAIL", [
-                "email" => $input["email"],
-            ]);
+        sendResponse(200, [
+            "id" => $_SESSION["id"],
+            "notify_comments" => (bool) $settings["notify_comments"],
+            "email" => $settings["email"],
+            "username" => $user["username"],
+            "csrf_token" => $_SESSION["csrf_token"],
+        ]);
+    } elseif ($request_method === "POST") {
+        requireLogin();
+        $input = validateInput([
+            "notify_comments",
+            "email",
+            "username",
+            "password",
+        ]);
+
+        if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL)) {
+            sendResponse(400, ["message" => "Invalid email"]);
         }
 
-        $stmt = $pdo->prepare(
-            "SELECT username, password_hash FROM users WHERE id = ?",
-        );
-        $stmt->execute([$_SESSION["id"]]);
-        $user = $stmt->fetch();
+        try {
+            $smtp = $pdo->prepare(
+                "SELECT email, notify_comments FROM settings WHERE user_id = ?",
+            );
+            $smtp->execute([$_SESSION["id"]]);
+            $settings = $smtp->fetch();
 
-        if ($user["username"] !== $input["username"]) {
-            $stmt = $pdo->prepare("UPDATE users SET username = ? WHERE id = ?");
-            $stmt->execute([$input["username"], $_SESSION["id"]]);
-        }
+            if ($settings["notify_comments"] !== (int) $input["notify_comments"]) {
+                $stmt = $pdo->prepare(
+                    "UPDATE settings SET notify_comments = ? WHERE user_id = ?",
+                );
+                $stmt->execute([(int) $input["notify_comments"], $_SESSION["id"]]);
+            }
 
-        if (strlen($input["password"]) > 0) {
-            if (strlen($input["password"]) < 6) {
-                sendResponse(400, ["message" => "Password too short"]);
+            if ($settings["email"] !== $input["email"]) {
+                action($_SESSION["id"], "CHANGE_EMAIL", [
+                    "email" => $input["email"],
+                ]);
             }
 
             $stmt = $pdo->prepare(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
+                "SELECT username, password_hash FROM users WHERE id = ?",
             );
-            $stmt->execute([
-                password_hash($input["password"], PASSWORD_DEFAULT),
-                $_SESSION["id"],
-            ]);
+            $stmt->execute([$_SESSION["id"]]);
+            $user = $stmt->fetch();
+
+            if ($user["username"] !== $input["username"]) {
+                $stmt = $pdo->prepare("UPDATE users SET username = ? WHERE id = ?");
+                $stmt->execute([$input["username"], $_SESSION["id"]]);
+            }
+
+            if (strlen($input["password"]) > 0) {
+                if (strlen($input["password"]) < 6) {
+                    sendResponse(400, ["message" => "Password too short"]);
+                }
+
+                $stmt = $pdo->prepare(
+                    "UPDATE users SET password_hash = ? WHERE id = ?",
+                );
+                $stmt->execute([
+                    password_hash($input["password"], PASSWORD_DEFAULT),
+                    $_SESSION["id"],
+                ]);
+            }
+        } catch (PDOException $e) {
+            sendResponse(500, ["message" => $e->getMessage()]);
         }
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
+
+        sendResponse(200, []);
+    } else {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
     }
+}
 
-    sendResponse(200, []);
-});
+function handle_images($pdo, $request_method)
+{
+    if ($request_method === "GET") {
+        $page = isset($_GET["page"]) ? (int) $_GET["page"] : 1;
 
-$router->post("/images", function () use ($pdo) {
-    requireLogin();
-    $input = validateInput(["image", "overlay"]);
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT id, user_id, content, created_at FROM images ORDER BY created_at DESC LIMIT :limit OFFSET :offset",
+            );
+            $stmt->bindValue(":limit", 5, PDO::PARAM_INT);
+            $stmt->bindValue(":offset", max(0, ($page - 1) * 5), PDO::PARAM_INT);
+            $stmt->execute();
+            $images = $stmt->fetchAll();
 
-    ($img = imagecreatefromstring(
-        base64_decode(
-            preg_replace("/^data:image\/\w+;base64,/", "", $input["image"]),
-        ),
-    )) or sendResponse(400, ["message" => "Invalid image data"]);
+            $stmt = $pdo->prepare("SELECT id, username FROM users");
+            $stmt->execute();
+            $users = $stmt->fetchAll();
+            $users = array_combine(array_map(fn($u) => $u["id"], $users), $users);
 
-    ($overlay = imagecreatefrompng(
-        __DIR__ . "/overlays/" . $input["overlay"],
-    )) or sendResponse(400, ["message" => "Invalid overlay image"]);
+            $stmt = $pdo->prepare(
+                "SELECT image_id, user_id, body, created_at FROM comments",
+            );
+            $stmt->execute();
+            $comments = $stmt->fetchAll();
 
-    $width = imagesx($img);
-    $height = imagesy($img);
+            if (isset($_SESSION["id"])) {
+                $stmt = $pdo->prepare(
+                    "SELECT image_id FROM likes WHERE user_id = ?",
+                );
+                $stmt->execute([$_SESSION["id"]]);
+                $liked = $stmt->fetchAll();
+                $liked = array_map(fn($l) => $l["image_id"], $liked);
+            }
 
-    $resized_overlay = imagecreatetruecolor($width, $height);
-    imagecopyresized(
-        $resized_overlay,
-        $overlay,
-        0,
-        0,
-        0,
-        0,
-        $width,
-        $height,
-        imagesx($overlay),
-        imagesy($overlay),
-    );
-    imagecopy($img, $resized_overlay, 0, 0, 0, 0, $width, $height);
+            foreach ($images as &$image) {
+                $image["liked"] = isset($liked) && in_array($image["id"], $liked);
+                $image["user"] = $users[$image["user_id"]];
+                unset($image["user_id"]);
 
-    ob_start();
-    imagepng($img);
-    $content = ob_get_clean();
-    $content = "data:image/png;base64," . base64_encode($content);
+                $image["comments"] = array_values(
+                    array_filter(
+                        $comments,
+                        fn($c) => $c["image_id"] === $image["id"],
+                    ),
+                );
+                foreach ($image["comments"] as &$comment) {
+                    $comment["user"] = $users[$comment["user_id"]];
+                    unset($comment["user_id"], $comment["image_id"]);
+                }
+            }
 
-    imagedestroy($img);
-    imagedestroy($overlay);
-    imagedestroy($resized_overlay);
+            sendResponse(200, $images);
+        } catch (PDOException $e) {
+            sendResponse(500, ["message" => $e->getMessage()]);
+        }
+    } elseif ($request_method === "POST") {
+        requireLogin();
+        $input = validateInput(["image", "overlay"]);
 
-    try {
-        $stmt = $pdo->prepare(
-            "INSERT INTO images (user_id, content) VALUES (?, ?)",
+        ($img = imagecreatefromstring(
+            base64_decode(
+                preg_replace("/^data:image\/\w+;base64,/", "", $input["image"]),
+            ),
+        )) or sendResponse(400, ["message" => "Invalid image data"]);
+
+        ($overlay = imagecreatefrompng(
+            __DIR__ . "/overlays/" . $input["overlay"],
+        )) or sendResponse(400, ["message" => "Invalid overlay image"]);
+
+        $width = imagesx($img);
+        $height = imagesy($img);
+
+        $resized_overlay = imagecreatetruecolor($width, $height);
+        imagecopyresized(
+            $resized_overlay,
+            $overlay,
+            0,
+            0,
+            0,
+            0,
+            $width,
+            $height,
+            imagesx($overlay),
+            imagesy($overlay),
         );
-        $stmt->execute([$_SESSION["id"], $content]);
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
+        imagecopy($img, $resized_overlay, 0, 0, 0, 0, $width, $height);
+
+        ob_start();
+        imagepng($img);
+        $content = ob_get_clean();
+        $content = "data:image/png;base64," . base64_encode($content);
+
+        imagedestroy($img);
+        imagedestroy($overlay);
+        imagedestroy($resized_overlay);
+
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO images (user_id, content) VALUES (?, ?)",
+            );
+            $stmt->execute([$_SESSION["id"], $content]);
+        } catch (PDOException $e) {
+            sendResponse(500, ["message" => $e->getMessage()]);
+        }
+
+        sendResponse(200, []);
+    } else {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
+    }
+}
+
+function handle_image_delete($pdo, $request_method, $id)
+{
+    if ($request_method !== "DELETE") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
     }
 
-    sendResponse(200, []);
-});
-
-$router->delete("/images/(\d+)", function ($id) use ($pdo) {
     requireLogin();
 
     try {
@@ -474,64 +596,14 @@ $router->delete("/images/(\d+)", function ($id) use ($pdo) {
     }
 
     sendResponse(200, []);
-});
+}
 
-$router->get("/images", function () use ($pdo) {
-    $page = isset($_GET["page"]) ? (int) $_GET["page"] : 1;
-
-    try {
-        $stmt = $pdo->prepare(
-            "SELECT id, user_id, content, created_at FROM images ORDER BY created_at DESC LIMIT :limit OFFSET :offset",
-        );
-        $stmt->bindValue(":limit", 5, PDO::PARAM_INT);
-        $stmt->bindValue(":offset", max(0, ($page - 1) * 5), PDO::PARAM_INT);
-        $stmt->execute();
-        $images = $stmt->fetchAll();
-
-        $stmt = $pdo->prepare("SELECT id, username FROM users");
-        $stmt->execute();
-        $users = $stmt->fetchAll();
-        $users = array_combine(array_map(fn($u) => $u["id"], $users), $users);
-
-        $stmt = $pdo->prepare(
-            "SELECT image_id, user_id, body, created_at FROM comments",
-        );
-        $stmt->execute();
-        $comments = $stmt->fetchAll();
-
-        if (isset($_SESSION["id"])) {
-            $stmt = $pdo->prepare(
-                "SELECT image_id FROM likes WHERE user_id = ?",
-            );
-            $stmt->execute([$_SESSION["id"]]);
-            $liked = $stmt->fetchAll();
-            $liked = array_map(fn($l) => $l["image_id"], $liked);
-        }
-
-        foreach ($images as &$image) {
-            $image["liked"] = isset($liked) && in_array($image["id"], $liked);
-            $image["user"] = $users[$image["user_id"]];
-            unset($image["user_id"]);
-
-            $image["comments"] = array_values(
-                array_filter(
-                    $comments,
-                    fn($c) => $c["image_id"] === $image["id"],
-                ),
-            );
-            foreach ($image["comments"] as &$comment) {
-                $comment["user"] = $users[$comment["user_id"]];
-                unset($comment["user_id"], $comment["image_id"]);
-            }
-        }
-
-        sendResponse(200, $images);
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
+function handle_image_like($pdo, $request_method, $id)
+{
+    if ($request_method !== "POST") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
     }
-});
 
-$router->post("/images/(\d+)/like", function ($id) use ($pdo) {
     requireLogin();
 
     try {
@@ -557,9 +629,14 @@ $router->post("/images/(\d+)/like", function ($id) use ($pdo) {
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
-});
+}
 
-$router->post("/images/(\d+)/comment", function ($id) use ($pdo) {
+function handle_image_comment($pdo, $request_method, $id)
+{
+    if ($request_method !== "POST") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
+    }
+
     requireLogin();
     $input = validateInput(["body"]);
 
@@ -594,9 +671,14 @@ $router->post("/images/(\d+)/comment", function ($id) use ($pdo) {
     } catch (PDOException $e) {
         sendResponse(500, ["message" => $e->getMessage()]);
     }
-});
+}
 
-$router->get("/overlays", function () {
+function handle_overlays($pdo, $request_method)
+{
+    if ($request_method !== "GET") {
+        sendResponse(405, ["message" => "Method Not Allowed"]);
+    }
+
     $files = scandir(__DIR__ . "/overlays");
     $images = [];
     foreach ($files as $file) {
@@ -610,6 +692,4 @@ $router->get("/overlays", function () {
         $images[] = ["slug" => $file, "content" => $base64];
     }
     sendResponse(200, $images);
-});
-
-$router->run();
+}
