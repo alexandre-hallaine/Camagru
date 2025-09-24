@@ -1,62 +1,168 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <title>Camagru</title>
-    <link rel="stylesheet" href="./style.css">
-</head>
-<body>
-    <main>
-        <h2>Authentication</h2>
-        <p>Please enter your email and password to sign in or create a new account.</p>
-        <form>
-            <input type="text" id="email" name="email" placeholder="email" required />
-            <input type="password" id="password" name="password" placeholder="password" />
-            <div>
-                <button id="reset-password" type="button">Reset Password</button>
-                <button type="submit">Continue</button>
-            </div>
-        </form>
+    <head>
+        <title>Camagru</title>
+        <link rel="stylesheet" href="../style.css" />
+    </head>
+    <body>
+        <header>
+            <button data-target="login">Login</button>
+            <button data-target="register">Register</button>
+            <button data-target="reset">Reset</button>
+        </header>
 
-        <p id="result"></p>
-    </main>
+        <main class="card">
+            <section id="login">
+                <h2>Login</h2>
+                <form id="login-form">
+                    <input
+                        type="text"
+                        id="login-username"
+                        name="username"
+                        placeholder="Username"
+                        required
+                    />
+                    <input
+                        type="password"
+                        id="login-password"
+                        name="password"
+                        placeholder="Password"
+                        required
+                    />
+                    <button type="submit">Continue</button>
+                </form>
+            </section>
+            <section id="register" style="display: none">
+                <h2>Register</h2>
+                <form id="register-form">
+                    <input
+                        type="email"
+                        id="register-email"
+                        name="email"
+                        placeholder="Email"
+                        required
+                    />
+                    <input
+                        type="text"
+                        id="register-username"
+                        name="username"
+                        placeholder="Username"
+                        required
+                    />
+                    <input
+                        type="password"
+                        id="register-password"
+                        name="password"
+                        placeholder="Password"
+                        required
+                    />
+                    <button type="submit">Continue</button>
+                </form>
+            </section>
+            <section id="reset" style="display: none">
+                <h2>Reset</h2>
+                <form id="reset-form">
+                    <input
+                        type="text"
+                        id="reset-username"
+                        name="username"
+                        placeholder="Username"
+                        required
+                    />
+                    <input
+                        type="password"
+                        id="reset-password"
+                        name="password"
+                        placeholder="New Password"
+                        required
+                    />
+                    <button type="submit">Continue</button>
+                </form>
+            </section>
+        </main>
 
-    <script type="module">
-import { apiCall } from '../shared.js';
+        <script type="module">
+            import { apiCall } from "../shared.js";
 
-(async () => {
-    const token = new URLSearchParams(window.location.search).get("token");
+            document.querySelectorAll("header button").forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    const targetId = btn.dataset.target;
+                    document.querySelectorAll("main section").forEach((sec) => {
+                        sec.style.display =
+                            sec.id === targetId ? "block" : "none";
+                    });
+                });
+            });
 
-    let ok, data;
-    if (token)
-        ({ ok, data } = await apiCall("/api/auth/verify", "POST", {token}));
-    if (!data?.verified)
-        ({ ok, data } = await apiCall("/api/auth/check", "GET"));
+            (async () => {
+                const token = new URLSearchParams(window.location.search).get(
+                    "token",
+                );
+                if (!token) return;
 
-    if (ok)
-        window.location.href = "/";
-})();
+                const { ok, data } = await apiCall("/api/auth/token", "POST", {
+                    token,
+                });
+                if (ok) window.location.href = "/";
+            })();
 
-document.querySelector("form").addEventListener("submit", async e => {
-    e.preventDefault();
-    
-    const { ok, data } = await apiCall("/api/auth", "POST", {
-        email: document.getElementById("email").value,
-        password: document.getElementById("password").value
-    });
+            document
+                .getElementById("login-form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
 
-    if (!ok)
-        document.getElementById("result").textContent = data.message;
-    else
-        window.location.href = "/";
-});
+                    const { ok, data } = await apiCall(
+                        "/api/auth/login",
+                        "POST",
+                        {
+                            username:
+                                document.getElementById("login-username").value,
+                            password:
+                                document.getElementById("login-password").value,
+                        },
+                    );
 
-document.getElementById("reset-password").addEventListener("click", async e => {
-    const { ok, data } = await apiCall("/api/auth/reset/send", "POST", {
-        email: document.getElementById("email").value,
-    });
+                    if (ok) window.location.href = "/";
+                    else alert(data.message);
+                });
 
-    document.getElementById("result").textContent = data.message;
-});
-    </script>
-</body>
+            document
+                .getElementById("register-form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+
+                    const { data } = await apiCall(
+                        "/api/auth/register",
+                        "POST",
+                        {
+                            email: document.getElementById("register-email")
+                                .value,
+                            username:
+                                document.getElementById("register-username")
+                                    .value,
+                            password:
+                                document.getElementById("register-password")
+                                    .value,
+                        },
+                    );
+
+                    alert(data.message);
+                });
+
+            document
+                .getElementById("reset-form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+
+                    const { data } = await apiCall("/api/auth/reset", "POST", {
+                        username:
+                            document.getElementById("reset-username").value,
+                        password:
+                            document.getElementById("reset-password").value,
+                    });
+
+                    alert(data.message);
+                });
+        </script>
+    </body>
 </html>
