@@ -1,6 +1,5 @@
 <?php
 
-require __DIR__ . "/vendor/autoload.php";
 
 $env_file = __DIR__ . "/.env";
 if (file_exists($env_file)) {
@@ -67,28 +66,11 @@ function validateInput($required): array
 
 function sendEmail($to, $subject, $body): bool
 {
-    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-    $mail->isSMTP();
-    $mail->Host = $_ENV["SMTP_HOST"];
-    $mail->SMTPAuth = true;
-    $mail->Username = $_ENV["SMTP_USER"];
-    $mail->Password = $_ENV["SMTP_PASS"];
+    $headers = "From: {$_ENV["SMTP_FROM_NAME"]} <{$_ENV["SMTP_FROM"]}>\r\n";
+    $headers .= "Reply-To: {$_ENV["SMTP_FROM"]}\r\n";
+    $headers .= "Content-type: text/html; charset=iso-8859-1\r\n";
 
-    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port = 587;
-    $mail->Timeout = 5;
-
-    $mail->setFrom($_ENV["SMTP_FROM"], $_ENV["SMTP_FROM_NAME"]);
-    $mail->addAddress($to);
-
-    $mail->Subject = $subject;
-    $mail->Body = $body;
-
-    try {
-        return $mail->send();
-    } catch (Throwable $e) {
-        return false;
-    }
+    return mail($to, $subject, $body, $headers);
 }
 
 function requireLogin(): void
@@ -657,14 +639,16 @@ function handle_image_comment($pdo, $request_method, $id)
         $settings = $stmt->fetch();
 
         if ($settings["notify_comments"]) {
-            sendEmail(
+            if (!sendEmail(
                 $settings["email"],
                 "New comment on your image",
                 "Hello,\n\n" .
                     "User {$user["username"]} commented on your image:\n\n" .
                     "{$input["body"]}\n\n" .
                     "If you didn't expect this, you can safely ignore this email.",
-            );
+            )) {
+                sendResponse(500, ["message" => "Failed to send notification email"]);
+            }
         }
 
         sendResponse(200, ["created_at" => date("Y-m-d H:i:s")]);

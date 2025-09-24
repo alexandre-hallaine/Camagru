@@ -1,11 +1,4 @@
 services:
-  composer_install:
-    image: composer:2
-    working_dir: /var/www/server
-    command: composer install --no-interaction --prefer-dist --no-progress
-    volumes:
-      - ./server:/var/www/server
-
   nginx:
     image: nginx:1.27-alpine
     ports:
@@ -20,10 +13,10 @@ services:
     build:
       context: .
       dockerfile: php.Dockerfile
+    env_file: ./server/.env
     volumes:
       - ./server:/var/www/server
     depends_on:
-      - composer_install
       - db
 
   db:
