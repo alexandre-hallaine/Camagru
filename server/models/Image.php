@@ -11,25 +11,19 @@ class Image
 
     public function create(int $userId, string $content): void
     {
-        $stmt = $this->pdo->prepare(
-            "INSERT INTO images (user_id, content) VALUES (?, ?)",
-        );
+        $stmt = $this->pdo->prepare("INSERT INTO images (user_id, content) VALUES (?, ?)");
         $stmt->execute([$userId, $content]);
     }
 
     public function delete(int $imageId, int $userId): void
     {
-        $stmt = $this->pdo->prepare(
-            "DELETE FROM images WHERE id = ? AND user_id = ?",
-        );
+        $stmt = $this->pdo->prepare("DELETE FROM images WHERE id = ? AND user_id = ?");
         $stmt->execute([$imageId, $userId]);
     }
 
     public function getPaginated(int $limit, int $offset): array
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT id, user_id, content, created_at FROM images ORDER BY created_at DESC LIMIT :limit OFFSET :offset",
-        );
+        $stmt = $this->pdo->prepare("SELECT id, user_id, content, created_at FROM images ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
         $stmt->bindValue(":limit", $limit, PDO::PARAM_INT);
         $stmt->bindValue(":offset", $offset, PDO::PARAM_INT);
         $stmt->execute();

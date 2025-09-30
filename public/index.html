@@ -229,7 +229,8 @@
                         .querySelector("header button[data-target='create']")
                         .remove();
                 } else {
-                    setCsrfToken(settings.csrf_token);
+                    const { data: csrfData } = await apiCall("/api/auth/csrf", "GET");
+                    setCsrfToken(csrfData.csrf_token);
                 }
 
                 document.getElementById("notify-comments").checked =

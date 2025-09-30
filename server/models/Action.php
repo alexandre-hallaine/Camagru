@@ -15,9 +15,7 @@ class Action
         ?array $payload,
         string $token,
     ): void {
-        $stmt = $this->pdo->prepare(
-            "INSERT INTO actions (user_id, kind, payload, token) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token), payload = VALUES(payload)",
-        );
+        $stmt = $this->pdo->prepare("INSERT INTO actions (user_id, kind, payload, token) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token), payload = VALUES(payload)");
         $stmt->execute([
             $userId,
             $kind,
@@ -28,9 +26,7 @@ class Action
 
     public function findByToken(string $token): ?array
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT user_id, kind, payload FROM actions WHERE token = ?",
-        );
+        $stmt = $this->pdo->prepare("SELECT user_id, kind, payload FROM actions WHERE token = ?");
         $stmt->execute([$token]);
         return $stmt->fetch() ?: null;
     }
