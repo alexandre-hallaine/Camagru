@@ -23,9 +23,9 @@ function validateInput($required): array
 
 function sendEmail($to, $subject, $body): bool
 {
-    $headers = "From: {" . getenv("SMTP_FROM_NAME") . "} <{" . getenv("SMTP_FROM") . "}>\n";
-    $headers .= "Reply-To: {" . getenv("SMTP_FROM") . "}\n";
-    $headers .= "Content-type: text/html; charset=utf-8\n";
+    $headers = "From: " . getenv("SMTP_FROM_NAME") . " <" . getenv("SMTP_FROM") . ">\n";
+    $headers .= "Reply-To: " . getenv("SMTP_FROM") . "\n";
+    $headers .= "Content-type: text/plain; charset=utf-8\n";
     return mail($to, $subject, $body, $headers);
 }
 
@@ -34,13 +34,9 @@ function requireLogin(PDO $pdo): void
     if (!isset($_SESSION["id"]))
         sendResponse(401, ["message" => "Unauthorized"]);
 
-    try {
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
-        $stmt->execute([$_SESSION["id"]]);
-        $user = $stmt->fetch();
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
-    }
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION["id"]]);
+    $user = $stmt->fetch();
 
     if (!$user)
         sendResponse(401, ["message" => "Unauthorized"]);
@@ -64,13 +60,12 @@ function action(PDO $pdo, $userId, $kind, $payload = null): void
 
     $verifyUrl = "http://" . $_SERVER["HTTP_HOST"] . "/auth/?token=" . urlencode($token);
 
-    try {
-        $stmt = $pdo->prepare("SELECT email FROM settings WHERE user_id = ?");
-        $stmt->execute([$userId]);
-        $settings = $stmt->fetch();
-    } catch (PDOException $e) {
-        sendResponse(500, ["message" => $e->getMessage()]);
-    }
+    $stmt = $pdo->prepare("SELECT email FROM settings WHERE user_id = ?");
+    $stmt->execute([$userId]);
+    $settings = $stmt->fetch();
+
+    if ($kind === "CHANGE_EMAIL")
+        $settings["email"] = $payload["email"];
 
     if (!sendEmail(
             $settings["email"],
@@ -78,7 +73,7 @@ function action(PDO $pdo, $userId, $kind, $payload = null): void
             "Hello,\n\n" .
                 "Please complete the action by opening the link below:\n" .
                 "$verifyUrl\n\n" .
-                "If you didn\'t request this, you can safely ignore this email.",
+                "If you didn't request this, you can safely ignore this email.",
         ))
         sendResponse(500, ["message" => "Failed to send verification email"]);
     sendResponse(400, ["message" => "Check your email inbox to complete the action."]);

@@ -12,6 +12,7 @@ class ImageController
     private User $userModel;
     private Comment $commentModel;
     private Like $likeModel;
+    private Setting $settingModel;
 
     public function __construct(PDO $pdo)
     {
@@ -20,6 +21,7 @@ class ImageController
         $this->userModel = new User($pdo);
         $this->commentModel = new Comment($pdo);
         $this->likeModel = new Like($pdo);
+        $this->settingModel = new Setting($pdo);
     }
 
     public function handle(): void
@@ -29,7 +31,7 @@ class ImageController
         $offset = max(0, ($page - 1) * $limit);
 
         $images = $this->imageModel->getPaginated($limit, $offset);
-        $allUsers = $this->userModel->getAllUsers();
+        $allUsers = $this->userModel->getAll();
         $allComments = $this->commentModel->getAll();
         $likedImages = isset($_SESSION["id"]) ? $this->likeModel->getLikedImagesByUser($_SESSION["id"]) : [];
 
@@ -124,7 +126,6 @@ class ImageController
                     "{$input["body"]}\n\n" .
                     "If you didn't expect this, you can safely ignore this email."))
             sendResponse(500, ["message" => "Failed to send notification email"]);
-        }
 
         sendResponse(200, ["created_at" => date("Y-m-d H:i:s")]);
     }

@@ -6,20 +6,14 @@ export function setCsrfToken(token) {
 
 export async function apiCall(url, method, data) {
   const headers = { "Content-Type": "application/json" };
-  if (method === "POST" && csrf_token) {
-    headers["X-CSRF-Token"] = csrf_token;
-  }
-
-  if (data) {
-    data = JSON.stringify(data);
-  }
+  if (method !== "GET") headers["X-CSRF-Token"] = csrf_token;
 
   const res = await fetch(url, {
     method,
-    body: data,
+    body: data ? JSON.stringify(data) : null,
     headers,
   });
 
   data = await res.json().catch(() => null);
-  return { ok: res.ok, data };
+  return { ok: res.ok && data, data };
 }

@@ -36,13 +36,19 @@ class User
         $stmt->execute([$userId]);
     }
 
-    public function update(int $userId, string $username, string $passwordHash): void
+    public function updatePassword(int $userId, string $passwordHash): void
     {
-        $stmt = $this->pdo->prepare("UPDATE users SET username = ?, password_hash = ?, is_confirmed = 1 WHERE id = ?");
-        $stmt->execute([$username, $passwordHash, $userId]);
+        $stmt = $this->pdo->prepare("UPDATE users SET password_hash = ?, is_confirmed = 1 WHERE id = ?");
+        $stmt->execute([$passwordHash, $userId]);
     }
 
-    private function getAll(): array
+    public function updateUsername(int $userId, string $username): void
+    {
+        $stmt = $this->pdo->prepare("UPDATE users SET username = ?, is_confirmed = 1 WHERE id = ?");
+        $stmt->execute([$username, $userId]);
+    }
+
+    public function getAll(): array
     {
         $stmt = $this->pdo->prepare("SELECT id, username FROM users");
         $stmt->execute();

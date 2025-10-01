@@ -30,7 +30,7 @@ class SettingsController
         $_SESSION["csrf_token"] = $token;
 
         sendResponse(200, [
-            "csrf_token" => $token
+            "csrf_token" => $token,
             "id" => $user["id"],
             "username" => $user["username"],
             "email" => $settings["email"],

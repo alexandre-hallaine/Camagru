@@ -22,9 +22,15 @@ class Setting
         $stmt->execute([$userId, $email]);
     }
 
-    public function update(int $userId, string $email, bool $notifyComments): void
+    public function updateNotifyComments(int $userId, bool $notifyComments): void
     {
-        $stmt = $this->pdo->prepare("UPDATE settings SET email = ?, notify_comments = ? WHERE user_id = ?");
-        $stmt->execute([$email, (int) $notifyComments, $userId]);
+        $stmt = $this->pdo->prepare("UPDATE settings SET notify_comments = ? WHERE user_id = ?");
+        $stmt->execute([(int) $notifyComments, $userId]);
+    }
+
+    public function updateEmail(int $userId, string $email): void
+    {
+        $stmt = $this->pdo->prepare("UPDATE settings SET email = ? WHERE user_id = ?");
+        $stmt->execute([$email, $userId]);
     }
 }
