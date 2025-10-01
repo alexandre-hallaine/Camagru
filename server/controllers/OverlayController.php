@@ -2,25 +2,21 @@
 
 class OverlayController
 {
-    public function handleOverlays(Request $request): void
+    public function handle(): void
     {
-        $requestMethod = $request->getMethod();
-        if ($requestMethod !== "GET") {
-            sendResponse(405, ["message" => "Method Not Allowed"]);
-        }
-
-        $files = scandir(__DIR__ . "/../overlays");
+        $dir = __DIR__ . "/../overlays";
         $images = [];
-        foreach ($files as $file) {
-            if (in_array($file, [".", ".."])) {
+        foreach (scandir($dir) as $file) {
+            if (in_array($file, [".", ".."]))
                 continue;
-            }
-            $path = __DIR__ . "/../overlays/" . $file;
+
+            $path = $dir . "/" . $file;
             $type = pathinfo($path, PATHINFO_EXTENSION);
             $data = file_get_contents($path);
             $base64 = "data:image/" . $type . ";base64," . base64_encode($data);
             $images[] = ["slug" => $file, "content" => $base64];
         }
+
         sendResponse(200, $images);
     }
 }

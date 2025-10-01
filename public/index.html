@@ -219,6 +219,8 @@
                     "GET",
                 );
 
+                setCsrfToken(settings.csrf_token);
+
                 if (!(id = settings.id)) {
                     document.querySelector("header button#logout").textContent =
                         "Login";
@@ -228,8 +230,6 @@
                     document
                         .querySelector("header button[data-target='create']")
                         .remove();
-                } else {
-                    setCsrfToken(settings.csrf_token);
                 }
 
                 document.getElementById("notify-comments").checked =

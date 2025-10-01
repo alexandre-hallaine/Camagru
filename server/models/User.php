@@ -11,9 +11,7 @@ class User
 
     public function findByUsername(string $username): ?array
     {
-        $stmt = $this->pdo->prepare(
-            "SELECT id, password_hash, is_confirmed FROM users WHERE username = ?",
-        );
+        $stmt = $this->pdo->prepare("SELECT id, password_hash, is_confirmed FROM users WHERE username = ?");
         $stmt->execute([$username]);
         return $stmt->fetch() ?: null;
     }
@@ -27,32 +25,33 @@ class User
 
     public function create(string $username, string $passwordHash): int
     {
-        $stmt = $this->pdo->prepare(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)",
-        );
+        $stmt = $this->pdo->prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)");
         $stmt->execute([$username, $passwordHash]);
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function updatePassword(int $userId, string $passwordHash): void
-    {
-        $stmt = $this->pdo->prepare(
-            "UPDATE users SET password_hash = ?, is_confirmed = 1 WHERE id = ?",
-        );
-        $stmt->execute([$passwordHash, $userId]);
-    }
-
     public function confirmAccount(int $userId): void
     {
-        $stmt = $this->pdo->prepare(
-            "UPDATE users SET is_confirmed = 1 WHERE id = ?",
-        );
+        $stmt = $this->pdo->prepare("UPDATE users SET is_confirmed = 1 WHERE id = ?");
         $stmt->execute([$userId]);
+    }
+
+    public function updatePassword(int $userId, string $passwordHash): void
+    {
+        $stmt = $this->pdo->prepare("UPDATE users SET password_hash = ?, is_confirmed = 1 WHERE id = ?");
+        $stmt->execute([$passwordHash, $userId]);
     }
 
     public function updateUsername(int $userId, string $username): void
     {
-        $stmt = $this->pdo->prepare("UPDATE users SET username = ? WHERE id = ?");
+        $stmt = $this->pdo->prepare("UPDATE users SET username = ?, is_confirmed = 1 WHERE id = ?");
         $stmt->execute([$username, $userId]);
+    }
+
+    public function getAll(): array
+    {
+        $stmt = $this->pdo->prepare("SELECT id, username FROM users");
+        $stmt->execute();
+        return $stmt->fetchAll();
     }
 }

@@ -19,74 +19,57 @@ class SettingsController
         $this->actionModel = new Action($pdo);
     }
 
-    public function handle(Request $request): void
+    public function handle(): void
     {
-        $requestMethod = $request->getMethod();
-        if ($requestMethod === "GET") {
-            requireLogin($this->pdo);
+        requireLogin($this->pdo);
 
-            $settings = $this->settingModel->findByUserId($_SESSION["id"]);
-            $user = $this->userModel->findById($_SESSION["id"]);
+        $token = bin2hex(random_bytes(32));
+        $settings = $this->settingModel->findByUserId($_SESSION["id"]);
+        $user = $this->userModel->findById($_SESSION["id"]);
 
-            sendResponse(200, [
-                "id" => $_SESSION["id"],
-                "notify_comments" => (bool) $settings["notify_comments"],
-                "email" => $settings["email"],
-                "username" => $user["username"],
-                "csrf_token" => $_SESSION["csrf_token"],
-            ]);
-        } elseif ($requestMethod === "POST") {
-            requireLogin($this->pdo);
-            $input = validateInput([
-                "notify_comments",
-                "email",
-                "username",
-                "password",
-            ]);
+        $_SESSION["csrf_token"] = $token;
 
-            if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL)) {
-                sendResponse(400, ["message" => "Invalid email"]);
-            }
+        sendResponse(200, [
+            "csrf_token" => $token,
+            "id" => $user["id"],
+            "username" => $user["username"],
+            "email" => $settings["email"],
+            "notify_comments" => (bool) $settings["notify_comments"],
+        ]);
+    }
 
-            $settings = $this->settingModel->findByUserId($_SESSION["id"]);
+    public function update(): void
+    {
+        requireLogin($this->pdo);
+        $input = validateInput([
+            "username",
+            "password",
+            "email",
+            "notify_comments",
+        ]);
 
-            if (
-                $settings["notify_comments"] !== (int) $input["notify_comments"]
-            ) {
-                $this->settingModel->updateNotifyComments(
-                    $_SESSION["id"],
-                    (bool) $input["notify_comments"],
-                );
-            }
+        if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL))
+            sendResponse(400, ["message" => "Invalid email"]);
 
-            if ($settings["email"] !== $input["email"]) {
-                action($this->pdo, $_SESSION["id"], "CHANGE_EMAIL", [
-                    "email" => $input["email"],
-                ]);
-            }
+        $user = $this->userModel->findById($_SESSION["id"]);
+        $settings = $this->settingModel->findByUserId($_SESSION["id"]);
 
-            $user = $this->userModel->findById($_SESSION["id"]);
+        if ($user["username"] !== $input["username"])
+            $this->userModel->updateUsername($_SESSION["id"], $input["username"]);
 
-            if ($user["username"] !== $input["username"]) {
-                $this->userModel->updateUsername(
-                    $_SESSION["id"],
-                    $input["username"],
-                );
-            }
+        if (strlen($input["password"]) > 0) {
+            if (strlen($input["password"]) < 6)
+                sendResponse(400, ["message" => "Password too short"]);
 
-            if (strlen($input["password"]) > 0) {
-                if (strlen($input["password"]) < 6) {
-                    sendResponse(400, ["message" => "Password too short"]);
-                }
-
-                $this->userModel->updatePassword(
-                    $_SESSION["id"],
-                    password_hash($input["password"], PASSWORD_DEFAULT),
-                );
-            }
-            sendResponse(200, []);
-        } else {
-            sendResponse(405, ["message" => "Method Not Allowed"]);
+            $this->userModel->updatePassword($_SESSION["id"], password_hash($input["password"], PASSWORD_DEFAULT));
         }
+
+        if ($settings["email"] !== $input["email"])
+            action($this->pdo, $_SESSION["id"], "CHANGE_EMAIL", ["email" => $input["email"]]);
+
+        if ($settings["notify_comments"] !== (int) $input["notify_comments"])
+            $this->settingModel->updateNotifyComments($_SESSION["id"], (bool) $input["notify_comments"]);
+
+        sendResponse(200, []);
     }
 }
