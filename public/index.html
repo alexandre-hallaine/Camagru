@@ -15,43 +15,40 @@
         <main>
             <section id="feed">
                 <div></div>
-                <div class="nav">
-                    <button id="prev">Previous</button>
-                    <button id="next">Next</button>
-                </div>
             </section>
-            <section id="create" style="display: none">
+            <section id="create" style="display: none; flex-direction: row">
                 <div class="card">
-                    <video autoplay width="640" height="480"></video>
+                    <div style="position: relative">
+                        <video autoplay width="640" height="480"></video>
+                        <img
+                            id="preview"
+                            width="640"
+                            height="480"
+                            style="position: absolute"
+                        />
+                        <img
+                            id="overlay"
+                            width="640"
+                            height="480"
+                            style="position: absolute"
+                        />
+                    </div>
+
                     <div class="action">
                         <input type="file" id="upload" accept="image/*" />
                         <button id="capture">Capture</button>
                     </div>
-                </div>
-
-                <div style="display: none; flex-direction: row">
-                    <div class="card">
-                        <div style="position: relative">
-                            <canvas width="640" height="480"></canvas>
-                            <img
-                                id="overlay"
-                                width="640"
-                                height="480"
-                                style="position: absolute"
-                            />
-                        </div>
-
-                        <div class="action">
-                            <button id="delete">Delete</button>
-                            <button id="share">Share</button>
-                        </div>
+                    <div class="action" style="display: none">
+                        <button id="delete">Delete</button>
+                        <button id="share">Share</button>
                     </div>
-                    <div
-                        id="thumbnails"
-                        class="card"
-                        style="overflow-y: auto; max-height: 80vh"
-                    ></div>
                 </div>
+
+                <div
+                    id="thumbnails"
+                    class="card"
+                    style="overflow-y: auto; max-height: 80vh"
+                ></div>
             </section>
             <section id="settings" style="display: none" class="card">
                 <h2>Settings</h2>

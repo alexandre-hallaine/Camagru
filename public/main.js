@@ -1,16 +1,21 @@
 import { apiCall, setCsrfToken } from "./shared.js";
 
 let id = null;
-let page = 1;
+let page = 0;
+let hasMore = true;
 
-async function renderFeed() {
-  const { data: images } = await apiCall(`/api/images?page=${page}`, "GET");
+let overlay = null;
 
-  document.getElementById("prev").disabled = page === 1;
-  document.getElementById("next").disabled = images.length < 5;
+async function renderFeed(clear = false) {
+  if (clear) page = 0;
+  else if (!hasMore) return;
+
+  hasMore = false;
+  const { data: images } = await apiCall(`/api/images?page=${++page}`, "GET");
+  if (images.length == 5) hasMore = true;
 
   const feed = document.querySelector("#feed > div:first-child");
-  feed.innerHTML = "";
+  if (clear) feed.innerHTML = "";
 
   for (const image of images) {
     const div = document.createElement("div");
@@ -53,10 +58,46 @@ async function renderFeed() {
 
       const { ok, data } = await apiCall(`/api/images/${image.id}`, "DELETE");
 
-      if (ok) {
-        alert("Image deleted");
-        renderFeed();
-      } else alert(data.message);
+      if (ok) renderFeed(true);
+      else alert(data.message);
+    });
+
+    const facebook = document.createElement("button");
+    facebook.textContent = "Facebook";
+    action.appendChild(facebook);
+    facebook.addEventListener("click", () => {
+      window.open(
+        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+          window.location.href,
+        )}`,
+        "_blank",
+      );
+    });
+
+    const twitter = document.createElement("button");
+    twitter.textContent = "Twitter";
+    action.appendChild(twitter);
+    twitter.addEventListener("click", () => {
+      window.open(
+        `https://twitter.com/intent/tweet?url=${encodeURIComponent(
+          window.location.href,
+        )}`,
+        "_blank",
+      );
+    });
+
+    const pinterest = document.createElement("button");
+    pinterest.textContent = "Pinterest";
+    action.appendChild(pinterest);
+    pinterest.addEventListener("click", () => {
+      window.open(
+        `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(
+          window.location.href,
+        )}&media=${encodeURIComponent(
+          image.content,
+        )}&description=Check%20out%20this%20image!`,
+        "_blank",
+      );
     });
 
     const comments = document.createElement("div");
@@ -117,32 +158,28 @@ async function renderFeed() {
   }
 }
 
+window.addEventListener("scroll", () => {
+  if (window.innerHeight + window.scrollY >= document.body.offsetHeight)
+    renderFeed();
+});
+
 (async () => {
   const { data: settings } = await apiCall("/api/settings", "GET");
 
   setCsrfToken(settings.csrf_token);
 
-  if (!(id = settings.id)) {
+  if ((id = settings.id)) {
+    document.getElementById("notify-comments").checked =
+      settings.notify_comments;
+    document.getElementById("email").value = settings.email;
+    document.getElementById("username").value = settings.username;
+  } else {
     document.querySelector("header button#logout").textContent = "Login";
     document.querySelector("header button[data-target='settings']").remove();
     document.querySelector("header button[data-target='create']").remove();
   }
 
-  document.getElementById("notify-comments").checked = settings.notify_comments;
-  document.getElementById("email").value = settings.email;
-  document.getElementById("username").value = settings.username;
-
-  document.getElementById("prev").addEventListener("click", () => {
-    page--;
-    renderFeed();
-  });
-
-  document.getElementById("next").addEventListener("click", () => {
-    page++;
-    renderFeed();
-  });
-
-  await renderFeed();
+  await renderFeed(true);
 })();
 
 document.querySelectorAll("header button").forEach((btn) => {
@@ -150,7 +187,7 @@ document.querySelectorAll("header button").forEach((btn) => {
     const targetId = btn.dataset.target;
     if (!targetId) return;
     document.querySelectorAll("main section").forEach((sec) => {
-      sec.style.display = sec.id === targetId ? "block" : "none";
+      sec.style.display = sec.id === targetId ? "flex" : "none";
     });
   });
 });
@@ -175,7 +212,10 @@ document
     if (!ok) alert(data.message);
     else {
       alert("Settings updated");
-      window.location.reload();
+      document.getElementById("username").value = data.username;
+      document.getElementById("email").value = data.email;
+      document.getElementById("password").value = "";
+      renderFeed(true);
     }
   });
 
@@ -185,54 +225,77 @@ navigator.mediaDevices
   .catch((e) => console.error("Camera error:", e));
 
 function toggleCreateStep(second) {
-  document.querySelector("section#create > div:first-child").style.display =
-    second ? "none" : "block";
-  document.querySelector("section#create > div:last-child").style.display =
-    second ? "flex" : "none";
+  if (!second) {
+    document.getElementById("upload").value = "";
+    document.getElementById("preview").src = "#";
+    document.getElementById("thumbnails").style.display = "flex";
+    document.getElementById("overlay").style.display = "block";
+  }
+
+  const actions = document.querySelectorAll("#create .action");
+  actions[0].style.display = second ? "none" : "block";
+  actions[1].style.display = second ? "block" : "none";
 }
 
-document.getElementById("upload").onchange = (e) => {
+document.getElementById("upload").onchange = async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
-  const canvas = document.querySelector("canvas");
-  canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+  const preview = document.getElementById("preview");
+  const overlay = document.getElementById("overlay");
+  const thumbnails = document.getElementById("thumbnails");
 
-  const img = new Image();
-  img.onload = () =>
-    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-  img.src = URL.createObjectURL(file);
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  await new Promise((resolve) => (reader.onload = resolve));
+
+  if (file.type === "image/gif") preview.src = reader.result;
+  else {
+    const img = new Image();
+    img.src = reader.result;
+    await new Promise((resolve) => (img.onload = resolve));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+
+    preview.src = canvas.toDataURL("image/png");
+  }
+
+  if (file.type === "image/gif") {
+    overlay.style.display = "none";
+    thumbnails.style.display = "none";
+  }
 
   toggleCreateStep(true);
 };
 
 document.getElementById("capture").onclick = () => {
-  const canvas = document.querySelector("canvas");
-  canvas
-    .getContext("2d")
-    .drawImage(
-      document.querySelector("video"),
-      0,
-      0,
-      canvas.width,
-      canvas.height,
-    );
+  const video = document.querySelector("video");
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  document.getElementById("preview").src = canvas.toDataURL("image/png");
 
   toggleCreateStep(true);
 };
 
-let selectedOverlay = null;
 (async () => {
   const { data } = await apiCall("/api/overlays", "GET");
   for (const overlayData of data) {
     const img = document.createElement("img");
     img.src = overlayData.content;
-    img.dataset.slug = overlayData.slug;
-    img.onclick = () => {
-      overlay.src = img.src;
-      selectedOverlay = overlayData.slug;
-    };
     document.getElementById("thumbnails").appendChild(img);
+    img.onclick = () => {
+      document.getElementById("overlay").src = img.src;
+      overlay = overlayData.slug;
+    };
   }
 })();
 
@@ -241,30 +304,23 @@ document.getElementById("delete").onclick = () => {
 };
 
 document.getElementById("share").onclick = async () => {
-  if (!document.getElementById("overlay").src) {
+  const image = document.getElementById("preview").src;
+
+  if (document.getElementById("overlay").style.display !== "none" && !overlay) {
     alert("You must select an overlay to share an image");
     return;
   }
 
-  const offscreenCanvas = new OffscreenCanvas(640, 480);
-  const ctx = offscreenCanvas.getContext("2d");
-  ctx.drawImage(document.querySelector("canvas"), 0, 0);
-
-  const blob = await offscreenCanvas.convertToBlob({
-    type: "image/png",
-  });
-  const buffer = await blob.arrayBuffer();
-  const base64 = `data:${blob.type};base64,${btoa(String.fromCharCode(...new Uint8Array(buffer)))}`;
+  console.log({ image, overlay });
 
   const { ok, data } = await apiCall("/api/images", "POST", {
-    image: base64,
-    overlay: selectedOverlay,
+    image,
+    overlay,
   });
 
   if (!ok) alert(data.message);
   else {
-    alert("Image shared");
-    renderFeed();
     toggleCreateStep(false);
+    renderFeed(true);
   }
 };
