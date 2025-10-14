@@ -6,13 +6,29 @@ let hasMore = true;
 
 let overlay = null;
 
+async function upload(data) {
+  const blob = await (await fetch(data)).blob(); // convert base64 to blob
+  const file = new File([blob], "camagru", { type: blob.type });
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch("https://file.hallaine.com/api", {
+    method: "POST",
+    body: formData,
+  });
+
+  const result = await response.json();
+  return result.url;
+}
+
 async function renderFeed(clear = false) {
   if (clear) page = 0;
   else if (!hasMore) return;
 
   hasMore = false;
   const { data: images } = await apiCall(`/api/images?page=${++page}`, "GET");
-  if (images.length == 5) hasMore = true;
+  if (images.length === 5) hasMore = true;
 
   const feed = document.querySelector("#feed > div:first-child");
   if (clear) feed.innerHTML = "";
@@ -62,14 +78,18 @@ async function renderFeed(clear = false) {
       else alert(data.message);
     });
 
+    let url = null;
+    async function getUrl() {
+      if (!url) url = await upload(image.content);
+      return url;
+    }
+
     const facebook = document.createElement("button");
     facebook.textContent = "Facebook";
     action.appendChild(facebook);
-    facebook.addEventListener("click", () => {
+    facebook.addEventListener("click", async () => {
       window.open(
-        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
-          window.location.href,
-        )}`,
+        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(await getUrl())}`,
         "_blank",
       );
     });
@@ -77,11 +97,9 @@ async function renderFeed(clear = false) {
     const twitter = document.createElement("button");
     twitter.textContent = "Twitter";
     action.appendChild(twitter);
-    twitter.addEventListener("click", () => {
+    twitter.addEventListener("click", async () => {
       window.open(
-        `https://twitter.com/intent/tweet?url=${encodeURIComponent(
-          window.location.href,
-        )}`,
+        `https://twitter.com/intent/tweet?url=${encodeURIComponent(await getUrl())}&text=${encodeURIComponent("Check out this image!")}`,
         "_blank",
       );
     });
@@ -89,13 +107,9 @@ async function renderFeed(clear = false) {
     const pinterest = document.createElement("button");
     pinterest.textContent = "Pinterest";
     action.appendChild(pinterest);
-    pinterest.addEventListener("click", () => {
+    pinterest.addEventListener("click", async () => {
       window.open(
-        `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(
-          window.location.href,
-        )}&media=${encodeURIComponent(
-          image.content,
-        )}&description=Check%20out%20this%20image!`,
+        `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(await getUrl())}&media=${encodeURIComponent(await getUrl())}&description=${encodeURIComponent("Check out this image!")}`,
         "_blank",
       );
     });
@@ -168,7 +182,8 @@ window.addEventListener("scroll", () => {
 
   setCsrfToken(settings.csrf_token);
 
-  if ((id = settings.id)) {
+  id = settings.id;
+  if (id) {
     document.getElementById("notify-comments").checked =
       settings.notify_comments;
     document.getElementById("email").value = settings.email;
@@ -221,7 +236,9 @@ document
 
 navigator.mediaDevices
   ?.getUserMedia({ video: true })
-  .then((s) => (document.querySelector("video").srcObject = s))
+  .then((s) => {
+    document.querySelector("video").srcObject = s;
+  })
   .catch((e) => console.error("Camera error:", e));
 
 function toggleCreateStep(second) {
@@ -247,13 +264,17 @@ document.getElementById("upload").onchange = async (e) => {
 
   const reader = new FileReader();
   reader.readAsDataURL(file);
-  await new Promise((resolve) => (reader.onload = resolve));
+  await new Promise((resolve) => {
+    reader.onload = resolve;
+  });
 
   if (file.type === "image/gif") preview.src = reader.result;
   else {
     const img = new Image();
     img.src = reader.result;
-    await new Promise((resolve) => (img.onload = resolve));
+    await new Promise((resolve) => {
+      img.onload = resolve;
+    });
 
     const canvas = document.createElement("canvas");
     canvas.width = img.width;
