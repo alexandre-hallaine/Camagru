@@ -55,42 +55,51 @@ class ImageController
     public function create(): void
     {
         requireLogin($this->pdo);
-        $input = validateInput(["image", "overlay"]);
+        $input = json_decode(file_get_contents("php://input"), true);
+        if (!$input) sendResponse(400, ['message' => 'Invalid JSON']);
+        $content = $input['image'];
 
-        ($img = imagecreatefromstring(base64_decode(preg_replace(
-            "/^data:image\/\w+;base64,/",
-            "",
-            $input["image"],
-        )))) or sendResponse(400, ["message" => "Invalid image data"]);
+        if (!isset($content) || empty($content))
+            sendResponse(400, ['message' => 'Image is required']);
 
-        ($overlay = imagecreatefrompng(
-            __DIR__ . "/../overlays/" . $input["overlay"],
-        )) or sendResponse(400, ["message" => "Invalid overlay image"]);
+        if (isset($input['overlay']) && !empty($input['overlay'])) {
+            ($image = imagecreatefromstring(base64_decode(preg_replace(
+                '/^data:image\/\w+;base64,/',
+                '',
+                $content,
+            )))) or sendResponse(400, ['message' => 'Invalid image data']);
 
-        $width = imagesx($img);
-        $height = imagesy($img);
+            ($overlay = imagecreatefrompng(
+                __DIR__ . '/../overlays/' . $input['overlay'],
+            )) or sendResponse(400, ['message' => 'Invalid overlay image']);
 
-        $resized_overlay = imagecreatetruecolor($width, $height);
-        imagecopyresized($resized_overlay, $overlay, 0, 0, 0, 0, $width, $height, imagesx($overlay), imagesy($overlay));
-        imagecopy($img, $resized_overlay, 0, 0, 0, 0, $width, $height);
+            imagealphablending($image, true);
+            imagesavealpha($image, true);
 
-        ob_start();
-        imagepng($img);
-        $content = "data:image/png;base64," . base64_encode(ob_get_clean());
+            imagecopyresampled(
+                $image,
+                $overlay,
+                0, 0, 0, 0,
+                imagesx($image), imagesy($image),
+                imagesx($overlay), imagesy($overlay)
+            );
 
-        imagedestroy($img);
-        imagedestroy($overlay);
-        imagedestroy($resized_overlay);
+            ob_start();
+            imagepng($image);
+            $content = 'data:image/png;base64,' . base64_encode(ob_get_clean());
 
-        $this->imageModel->create($_SESSION["id"], $content);
+            imagedestroy($image);
+            imagedestroy($overlay);
+        }
+
+        $this->imageModel->create($_SESSION['id'], $content);
         sendResponse(200, []);
     }
 
     public function delete(int $id): void
     {
         requireLogin($this->pdo);
-        $this->imageModel->delete($id, $_SESSION["id"]);
-        sendResponse(200, []);
+        $this->imageModel->delete($id, $_SESSION["id"]); sendResponse(200, []);
     }
 
     public function like(int $id): void
