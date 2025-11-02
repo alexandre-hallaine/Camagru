@@ -16,6 +16,13 @@ class Setting
         return $stmt->fetch() ?: null;
     }
 
+    public function findByEmail(string $email): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT user_id FROM settings WHERE email = ?");
+        $stmt->execute([$email]);
+        return $stmt->fetch() ?: null;
+    }
+
     public function create(int $userId, string $email): void
     {
         $stmt = $this->pdo->prepare("INSERT INTO settings (user_id, email) VALUES (?, ?)");

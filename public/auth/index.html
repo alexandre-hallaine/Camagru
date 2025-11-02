@@ -1,19 +1,20 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
     <head>
-        <title>Camagru</title>
+        <title>Camagru - Authentication</title>
         <link rel="stylesheet" href="../style.css" />
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     </head>
-    <body>
-        <header>
-            <button data-target="login">Login</button>
-            <button data-target="register">Register</button>
-            <button data-target="reset">Reset</button>
-        </header>
-
-        <main class="card">
-            <section id="login">
-                <h2>Login</h2>
+    <body class="auth-body">
+        <div class="card">
+            <div class="auth-logo">Camagru</div>
+            <div class="nav">
+                <button data-target="login" class="active">Login</button>
+                <button data-target="register">Register</button>
+                <button data-target="reset">Reset</button>
+            </div>
+            <section id="login" class="active">
                 <form id="login-form">
                     <input
                         type="text"
@@ -29,11 +30,10 @@
                         placeholder="Password"
                         required
                     />
-                    <button type="submit">Continue</button>
+                    <button type="submit">Log In</button>
                 </form>
             </section>
-            <section id="register" style="display: none">
-                <h2>Register</h2>
+            <section id="register">
                 <form id="register-form">
                     <input
                         type="email"
@@ -56,11 +56,10 @@
                         placeholder="Password"
                         required
                     />
-                    <button type="submit">Continue</button>
+                    <button type="submit">Sign Up</button>
                 </form>
             </section>
-            <section id="reset" style="display: none">
-                <h2>Reset</h2>
+            <section id="reset">
                 <form id="reset-form">
                     <input
                         type="text"
@@ -76,10 +75,10 @@
                         placeholder="New Password"
                         required
                     />
-                    <button type="submit">Continue</button>
+                    <button type="submit">Reset Password</button>
                 </form>
             </section>
-        </main>
+        </div>
 
         <script type="module" src="main.js"></script>
     </body>

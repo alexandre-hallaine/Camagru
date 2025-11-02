@@ -1,80 +1,72 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
     <head>
         <title>Camagru</title>
-        <link rel="stylesheet" href="../style.css" />
+        <link rel="stylesheet" href="style.css" />
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     </head>
     <body>
-        <header>
-            <button data-target="feed">Feed</button>
-            <button data-target="create">Create</button>
-            <button data-target="settings">Settings</button>
-            <button id="logout">Logout</button>
-        </header>
+        <div class="container">
+            <header>
+                <div class="logo">Camagru</div>
+                <nav>
+                    <a href="#" data-target="feed">Feed</a>
+                    <a href="#" data-target="create">Create</a>
+                    <a href="#" data-target="settings">Settings</a>
+                    <a href="#" id="logout">Logout</a>
+                </nav>
+            </header>
 
-        <main>
-            <section id="feed">
-                <div></div>
-            </section>
-            <section id="create" style="display: none; flex-direction: row">
-                <div class="card">
-                    <div style="position: relative">
-                        <video autoplay width="640" height="480"></video>
-                        <img
-                            id="preview"
-                            width="640"
-                            height="480"
-                            style="position: absolute"
-                        />
-                        <img
-                            id="overlay"
-                            width="640"
-                            height="480"
-                            style="position: absolute"
-                        />
-                    </div>
+            <main>
+                <section id="feed" class="active">
+                    <!-- Posts will be dynamically loaded here -->
+                </section>
 
-                    <div class="action">
-                        <input type="file" id="upload" accept="image/*" />
-                        <button id="capture">Capture</button>
+                <section id="create">
+                    <div class="create-container">
+                        <h2>Create Post</h2>
+                        <div class="media-capture">
+                            <video autoplay></video>
+                            <img id="preview" alt="Preview">
+                            <img id="overlay" alt="Overlay">
+                        </div>
+                        <div class="controls">
+                            <label for="upload" class="file-upload-label">Upload</label>
+                            <input type="file" id="upload" accept="image/*" style="display: none;">
+                            <button id="capture" class="control-btn">Capture</button>
+                            <button id="delete" class="control-btn" style="display: none;">Delete</button>
+                            <button id="share" class="control-btn" style="display: none;">Share</button>
+                        </div>
+                        <div id="thumbnails"></div>
                     </div>
-                    <div class="action" style="display: none">
-                        <button id="delete">Delete</button>
-                        <button id="share">Share</button>
-                    </div>
-                </div>
+                </section>
 
-                <div
-                    id="thumbnails"
-                    class="card"
-                    style="overflow-y: auto; max-height: 80vh"
-                ></div>
-            </section>
-            <section id="settings" style="display: none" class="card">
-                <h2>Settings</h2>
-                <form>
-                    <div style="display: inline-block">
-                        <label for="notify-comments"
-                            >Notify me by email when someone comments on my
-                            pictures</label
-                        >
-                        <input type="checkbox" id="notify-comments" />
+                <section id="settings">
+                    <div class="settings-container">
+                        <h2>Settings</h2>
+                        <form>
+                            <p>
+                                <label for="notify-comments">Email notifications for comments</label>
+                                <input type="checkbox" id="notify-comments">
+                            </p>
+                            <p>
+                                <input type="email" id="email" placeholder="New email">
+                            </p>
+                            <p>
+                                <input type="text" id="username" placeholder="New username">
+                            </p>
+                            <p>
+                                <input type="password" id="password" placeholder="New password">
+                            </p>
+                            <p>
+                                <button type="submit">Update</button>
+                            </p>
+                        </form>
                     </div>
-                    <input type="email" id="email" placeholder="New email" />
-                    <input
-                        type="text"
-                        id="username"
-                        placeholder="New username"
-                    />
-                    <input
-                        type="password"
-                        id="password"
-                        placeholder="New password"
-                    />
-                    <button type="submit">Update</button>
-                </form>
-            </section>
-        </main>
+                </section>
+            </main>
+        </div>
 
         <script type="module" src="main.js"></script>
     </body>

@@ -18,7 +18,21 @@ function validateInput($required): array
         if (!isset($input[$field]))
             sendResponse(400, ["message" => "Missing field: $field"]);
 
-    return array_map("trim", $input);
+    return array_map(fn($v) => htmlspecialchars(trim($v)), $input);
+}
+
+function validatePassword($password): void
+{
+    if (strlen($password) < 8)
+        sendResponse(400, ["message" => "Password must be at least 8 characters long"]);
+    if (!preg_match('/[A-Z]/', $password))
+        sendResponse(400, ["message" => "Password must contain at least one uppercase letter"]);
+    if (!preg_match('/[a-z]/', $password))
+        sendResponse(400, ["message" => "Password must contain at least one lowercase letter"]);
+    if (!preg_match('/[0-9]/', $password))
+        sendResponse(400, ["message" => "Password must contain at least one digit"]);
+    if (!preg_match('/[\W_]/', $password))
+        sendResponse(400, ["message" => "Password must contain at least one special character"]);
 }
 
 function sendEmail($to, $subject, $body): bool

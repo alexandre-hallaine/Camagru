@@ -40,8 +40,14 @@ class AuthController
 
         if (!filter_var($input["email"], FILTER_VALIDATE_EMAIL))
             sendResponse(400, ["message" => "Invalid email"]);
-        if (strlen($input["password"]) < 6)
-            sendResponse(400, ["message" => "Password too short"]);
+
+        if ($this->settingModel->findByEmail($input["email"]))
+            sendResponse(400, ["message" => "Email already in use"]);
+
+        if ($this->userModel->findByUsername($input["username"]))
+            sendResponse(400, ["message" => "Username already in use"]);
+
+        validatePassword($input["password"]);
 
         $userId = $this->userModel->create($input["username"], password_hash($input["password"], PASSWORD_DEFAULT));
         $this->settingModel->create($userId, $input["email"]);
@@ -51,9 +57,7 @@ class AuthController
     public function reset(): void
     {
         $input = validateInput(["username", "password"]);
-
-        if (strlen($input["password"]) < 6)
-            sendResponse(400, ["message" => "Password too short"]);
+        validatePassword($input["password"]);
 
         $user = $this->userModel->findByUsername($input["username"]);
         if (!$user)

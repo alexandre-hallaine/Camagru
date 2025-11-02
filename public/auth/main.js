@@ -1,10 +1,14 @@
 import { apiCall } from "../shared.js";
 
-document.querySelectorAll("header button").forEach((btn) => {
+document.querySelectorAll(".nav button").forEach((btn) => {
   btn.addEventListener("click", () => {
     const targetId = btn.dataset.target;
-    document.querySelectorAll("main section").forEach((sec) => {
-      sec.style.display = sec.id === targetId ? "block" : "none";
+
+    document.querySelectorAll(".nav button").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    document.querySelectorAll(".card section").forEach((sec) => {
+      sec.classList.toggle("active", sec.id === targetId);
     });
   });
 });

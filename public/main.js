@@ -13,13 +13,12 @@ async function upload(data) {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch("https://file.hallaine.com/api", {
+  return await fetch("https://file.hallaine.com/api", {
     method: "POST",
     body: formData,
-  });
-
-  const result = await response.json();
-  return result.url;
+  })
+    .then(async (response) => (await response.json()).url)
+    .catch(() => null);
 }
 
 async function renderFeed(clear = false) {
@@ -30,145 +29,117 @@ async function renderFeed(clear = false) {
   const { data: images } = await apiCall(`/api/images?page=${++page}`, "GET");
   if (images.length === 5) hasMore = true;
 
-  const feed = document.querySelector("#feed > div:first-child");
+  const feed = document.querySelector("#feed");
   if (clear) feed.innerHTML = "";
 
   for (const image of images) {
-    const div = document.createElement("div");
-    div.classList.add("card");
-    div.classList.add("image");
-    feed.appendChild(div);
+    const root = document.createElement("div");
+    root.classList.add("post");
+    root.innerHTML = `
+      <div class="post-header">
+        <b>${image.user.username}</b>
+      </div>
+      <div class="post-image">
+        <img src="${image.content}" alt="Post Image">
+      </div>
+      <div class="post-content">
+        <div class="post-actions">
+          <button class="like-btn">${image.likes.some((userId) => userId === id) ? "Liked" : "Like"}</button>
+          <button class="comment-btn">Comment</button>
+          <button class="share-btn">Share</button>
+          <button class="delete-btn">Delete</button>
+        </div>
+        <div class="post-likes">${image.likes.length} likes</div>
+        <div class="post-comments">
+          ${image.comments.map((comment) => `<div class="comment"><b>${comment.user.username}</b> ${comment.body}</div>`).join("")}
+        </div>
+        <div class="add-comment">
+          <input type="text" placeholder="Add a comment...">
+          <button>Post</button>
+        </div>
+      </div>
+    `;
+    feed.appendChild(root);
 
-    const img = document.createElement("img");
-    img.src = image.content;
-    div.appendChild(img);
-
-    const action = document.createElement("div");
-    action.classList.add("action");
-    div.appendChild(action);
-
-    const username = document.createElement("h3");
-    username.textContent = image.user.username;
-    action.appendChild(username);
-
-    const date = document.createElement("em");
-    date.textContent = `Posted on ${new Date(image.created_at).toLocaleString()}`;
-    action.appendChild(date);
-
-    const like = document.createElement("button");
-    like.textContent = image.liked ? "Unlike" : "Like";
-    if (id) action.appendChild(like);
-    like.addEventListener("click", async () => {
-      const { ok, data } = await apiCall(
-        `/api/images/${image.id}/like`,
-        "POST",
-      );
-      if (ok) like.textContent = data.liked ? "Unlike" : "Like";
-    });
-
-    const deleteBtn = document.createElement("button");
-    deleteBtn.textContent = "Delete";
-    if (image.user.id === id) action.appendChild(deleteBtn);
-    deleteBtn.addEventListener("click", async () => {
-      if (!confirm("Are you sure you want to delete this image?")) return;
-
-      const { ok, data } = await apiCall(`/api/images/${image.id}`, "DELETE");
-
-      if (ok) renderFeed(true);
-      else alert(data.message);
-    });
-
-    let url = null;
-    async function getUrl() {
-      if (!url) url = await upload(image.content);
-      return url;
-    }
-
-    const facebook = document.createElement("button");
-    facebook.textContent = "Facebook";
-    action.appendChild(facebook);
-    facebook.addEventListener("click", async () => {
-      window.open(
-        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(await getUrl())}`,
-        "_blank",
-      );
-    });
-
-    const twitter = document.createElement("button");
-    twitter.textContent = "Twitter";
-    action.appendChild(twitter);
-    twitter.addEventListener("click", async () => {
-      window.open(
-        `https://twitter.com/intent/tweet?url=${encodeURIComponent(await getUrl())}&text=${encodeURIComponent("Check out this image!")}`,
-        "_blank",
-      );
-    });
-
-    const pinterest = document.createElement("button");
-    pinterest.textContent = "Pinterest";
-    action.appendChild(pinterest);
-    pinterest.addEventListener("click", async () => {
-      window.open(
-        `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(await getUrl())}&media=${encodeURIComponent(await getUrl())}&description=${encodeURIComponent("Check out this image!")}`,
-        "_blank",
-      );
-    });
-
-    const comments = document.createElement("div");
-    comments.classList.add("comments");
-    div.appendChild(comments);
-
-    function createCommentElement(comment) {
-      const commentDiv = document.createElement("div");
-      comments.appendChild(commentDiv);
-
-      const author = document.createElement("strong");
-      author.textContent = comment.user.username;
-      commentDiv.appendChild(author);
-
-      const date = document.createElement("em");
-      date.textContent = ` (${new Date(comment.created_at).toLocaleString()})`;
-      commentDiv.appendChild(date);
-
-      const body = document.createElement("span");
-      body.textContent = `: ${comment.body}`;
-      commentDiv.appendChild(body);
-    }
-
-    const commentAction = document.createElement("div");
-    commentAction.classList.add("action");
-    if (id) comments.appendChild(commentAction);
-
-    const commentInput = document.createElement("input");
-    commentInput.type = "text";
-    commentAction.appendChild(commentInput);
-
-    const commentButton = document.createElement("button");
-    commentButton.textContent = "Post";
-    commentAction.appendChild(commentButton);
-    commentButton.addEventListener("click", async () => {
-      const { ok, data } = await apiCall(
-        `/api/images/${image.id}/comment`,
-        "POST",
-        { body: commentInput.value },
-      );
-      if (!ok) {
-        alert(data.message);
-        return;
-      }
-
-      createCommentElement({
-        user: {
-          username: document.getElementById("username").value,
-        },
-        body: commentInput.value,
-        created_at: data.created_at,
+    const likeBtn = root.querySelector(".like-btn");
+    if (id) {
+      likeBtn.addEventListener("click", async () => {
+        const { ok, data } = await apiCall(
+          `/api/images/${image.id}/like`,
+          "POST",
+        );
+        if (ok) likeBtn.innerHTML = data.liked ? "❤️" : "🤍";
       });
 
-      commentInput.value = "";
-    });
+      const commentBtn = root.querySelector(".comment-btn");
+      commentBtn.addEventListener("click", () => {
+        root.querySelector(".add-comment input").focus();
+      });
 
-    for (const data of image.comments) createCommentElement(data);
+      const shareBtn = root.querySelector(".share-btn");
+      shareBtn.addEventListener("click", async () => {
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              title: "Check out this image from Camagru!",
+              text: "I thought you might like this image.",
+              url: image.content,
+            });
+          } catch (error) {
+            console.error("Error sharing:", error);
+          }
+        } else {
+          navigator.clipboard.writeText(image.content).then(() => {
+            alert("Image URL copied to clipboard!");
+          }, () => {
+            alert("Failed to copy image URL to clipboard.");
+          });
+        }
+      });
+
+      const deleteBtn = root.querySelector(".delete-btn");
+      if (id !== image.user.id) deleteBtn.style.display = "none";
+      else {
+        deleteBtn.addEventListener("click", async () => {
+          if (!confirm("Are you sure you want to delete this image?")) return;
+
+          const { ok, data } = await apiCall(
+            `/api/images/${image.id}`,
+            "DELETE",
+          );
+
+          if (ok) renderFeed(true);
+          else alert(data.message);
+        });
+      }
+
+      const addCommentBtn = root.querySelector(".add-comment button");
+      const addCommentInput = root.querySelector(".add-comment input");
+
+      if (id) {
+        addCommentBtn.addEventListener("click", async () => {
+          const body = addCommentInput.value.trim();
+          if (body.length === 0) return alert("Comment cannot be empty");
+          addCommentInput.value = "";
+
+          const { ok, data } = await apiCall(
+            `/api/images/${image.id}/comment`,
+            "POST",
+            { body },
+          );
+
+          if (!ok) return alert(data.message);
+
+          const newComment = document.createElement("div");
+          newComment.classList.add("comment");
+          newComment.innerHTML = `<b>${document.getElementById("username").value}</b>: ${body}`;
+          root.querySelector(".post-comments").appendChild(newComment);
+        });
+      } else {
+        addCommentInput.style.display = "none";
+        addCommentBtn.style.display = "none";
+      }
+    }
   }
 }
 
@@ -189,21 +160,29 @@ window.addEventListener("scroll", () => {
     document.getElementById("email").value = settings.email;
     document.getElementById("username").value = settings.username;
   } else {
-    document.querySelector("header button#logout").textContent = "Login";
-    document.querySelector("header button[data-target='settings']").remove();
-    document.querySelector("header button[data-target='create']").remove();
+    document.querySelector("a#logout").textContent = "Login";
+    document.querySelector("a[data-target='settings']").style.display = "none";
+    document.querySelector("a[data-target='create']").style.display = "none";
   }
 
   await renderFeed(true);
 })();
 
-document.querySelectorAll("header button").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const targetId = btn.dataset.target;
+document.querySelectorAll("nav a").forEach((link) => {
+  link.addEventListener("click", (e) => {
+    e.preventDefault();
+    const targetId = link.dataset.target;
     if (!targetId) return;
+
     document.querySelectorAll("main section").forEach((sec) => {
-      sec.style.display = sec.id === targetId ? "flex" : "none";
+      sec.classList.remove("active");
     });
+
+    document.getElementById(targetId).classList.add("active");
+
+    if (targetId === "create") {
+      toggleCreateStep(false);
+    }
   });
 });
 
@@ -241,17 +220,33 @@ navigator.mediaDevices
   })
   .catch((e) => console.error("Camera error:", e));
 
-function toggleCreateStep(second) {
-  if (!second) {
-    document.getElementById("upload").value = "";
-    document.getElementById("preview").src = "#";
-    document.getElementById("thumbnails").style.display = "flex";
-    document.getElementById("overlay").style.display = "block";
-  }
+function toggleCreateStep(showPreview) {
+  const video = document.querySelector("video");
+  const preview = document.getElementById("preview");
+  const overlay = document.getElementById("overlay");
+  const captureBtn = document.getElementById("capture");
+  const deleteBtn = document.getElementById("delete");
+  const shareBtn = document.getElementById("share");
+  const thumbnails = document.getElementById("thumbnails");
 
-  const actions = document.querySelectorAll("#create .action");
-  actions[0].style.display = second ? "none" : "block";
-  actions[1].style.display = second ? "block" : "none";
+  if (showPreview) {
+    video.style.display = "none";
+    preview.style.display = "block";
+    overlay.style.display = "block";
+    deleteBtn.style.display = "inline-block";
+    shareBtn.style.display = "inline-block";
+    captureBtn.style.display = "none";
+  } else {
+    video.style.display = "block";
+    preview.src = "#";
+    preview.style.display = "none";
+    overlay.src = "#";
+    overlay.style.display = "none";
+    thumbnails.style.display = "flex";
+    deleteBtn.style.display = "none";
+    shareBtn.style.display = "none";
+    captureBtn.style.display = "inline-block";
+  }
 }
 
 document.getElementById("upload").onchange = async (e) => {
@@ -268,8 +263,11 @@ document.getElementById("upload").onchange = async (e) => {
     reader.onload = resolve;
   });
 
-  if (file.type === "image/gif") preview.src = reader.result;
-  else {
+  if (file.type === "image/gif") {
+    preview.src = reader.result;
+    overlay.style.display = "none";
+    thumbnails.style.display = "none";
+  } else {
     const img = new Image();
     img.src = reader.result;
     await new Promise((resolve) => {
@@ -283,11 +281,6 @@ document.getElementById("upload").onchange = async (e) => {
     ctx.drawImage(img, 0, 0);
 
     preview.src = canvas.toDataURL("image/png");
-  }
-
-  if (file.type === "image/gif") {
-    overlay.style.display = "none";
-    thumbnails.style.display = "none";
   }
 
   toggleCreateStep(true);
@@ -327,21 +320,25 @@ document.getElementById("delete").onclick = () => {
 document.getElementById("share").onclick = async () => {
   const image = document.getElementById("preview").src;
 
-  if (document.getElementById("overlay").style.display !== "none" && !overlay) {
-    alert("You must select an overlay to share an image");
-    return;
-  }
+  if (navigator.share) {
+    try {
+      const response = await fetch(image);
+      const blob = await response.blob();
+      const file = new File([blob], 'image.png', { type: blob.type });
 
-  console.log({ image, overlay });
-
-  const { ok, data } = await apiCall("/api/images", "POST", {
-    image,
-    overlay,
-  });
-
-  if (!ok) alert(data.message);
-  else {
-    toggleCreateStep(false);
-    renderFeed(true);
+      await navigator.share({
+        title: "Check out this image from Camagru!",
+        text: "I thought you might like this image.",
+        files: [file],
+      });
+    } catch (error) {
+      console.error("Error sharing:", error);
+    }
+  } else {
+    navigator.clipboard.writeText(image).then(() => {
+      alert("Image URL copied to clipboard!");
+    }, () => {
+      alert("Failed to copy image URL to clipboard.");
+    });
   }
 };

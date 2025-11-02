@@ -58,9 +58,7 @@ class SettingsController
             $this->userModel->updateUsername($_SESSION["id"], $input["username"]);
 
         if (strlen($input["password"]) > 0) {
-            if (strlen($input["password"]) < 6)
-                sendResponse(400, ["message" => "Password too short"]);
-
+            validatePassword($input["password"]);
             $this->userModel->updatePassword($_SESSION["id"], password_hash($input["password"], PASSWORD_DEFAULT));
         }
 

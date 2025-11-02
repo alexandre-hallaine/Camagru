@@ -33,16 +33,16 @@ class ImageController
         $images = $this->imageModel->getPaginated($limit, $offset);
         $allUsers = $this->userModel->getAll();
         $allComments = $this->commentModel->getAll();
-        $likedImages = isset($_SESSION["id"]) ? $this->likeModel->getLikedImagesByUser($_SESSION["id"]) : [];
-
+        $allLikes = $this->likeModel->getAll();
         $allUsers = array_combine(array_map(fn($u) => $u["id"], $allUsers), $allUsers);
 
         foreach ($images as &$image) {
-            $image["liked"] = in_array($image["id"], $likedImages);
             $image["user"] = $allUsers[$image["user_id"]];
             unset($image["user_id"]);
 
+            $image["likes"] = array_column(array_filter($allLikes, fn($l) => $l["image_id"] === $image["id"]), "user_id");
             $image["comments"] = array_values(array_filter($allComments, fn($c) => $c["image_id"] === $image["id"]));
+
             foreach ($image["comments"] as &$comment) {
                 $comment["user"] = $allUsers[$comment["user_id"]];
                 unset($comment["user_id"], $comment["image_id"]);
@@ -63,14 +63,18 @@ class ImageController
             sendResponse(400, ['message' => 'Image is required']);
 
         if (isset($input['overlay']) && !empty($input['overlay'])) {
-            ($image = imagecreatefromstring(base64_decode(preg_replace(
+            $imageData = base64_decode(preg_replace(
                 '/^data:image\/\w+;base64,/',
                 '',
                 $content,
-            )))) or sendResponse(400, ['message' => 'Invalid image data']);
+            ));
+            if (!@getimagesizefromstring($imageData)) {
+                sendResponse(400, ['message' => 'Invalid image data']);
+            }
+            ($image = imagecreatefromstring($imageData)) or sendResponse(400, ['message' => 'Invalid image data']);
 
             ($overlay = imagecreatefrompng(
-                __DIR__ . '/../overlays/' . $input['overlay'],
+                __DIR__ . '/../overlays/' . basename($input['overlay']),
             )) or sendResponse(400, ['message' => 'Invalid overlay image']);
 
             imagealphablending($image, true);
